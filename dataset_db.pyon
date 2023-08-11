@@ -1,0 +1,9 @@
+{
+    "UrukulCh0_RFamp": 0.01,
+    "scan1.detection_time": 10.0,
+    "scan1.freq1": 1.0,
+    "scan1.repetitions": 100,
+    "scan1.time1": 1.0,
+    "scan1.time2": 1.0,
+    "scan1.time3": 1.0
+}
