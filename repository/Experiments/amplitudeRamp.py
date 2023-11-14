@@ -1,19 +1,25 @@
 from artiq.experiment import *
 import numpy as np
-import time as tm
+import time as timelib
 
 class AmplitudeRamp(EnvExperiment):
     def build(self):
+        # Please make sure to enter the right units.
         self.setattr_device("core")
+        #self.setattr_device("ttl0")
         self.setattr_device("urukul0_ch0")
         self.setattr_device("urukul0_cpld")
+        self.setattr_argument("activateRF", BooleanValue(default=True), tooltip="Urukul0Ch0")
         # self.setattr_device("scheduler")
         self.lowerlim=0.0001
-        self.setattr_argument("frequency", NumberValue(default=1, min = 36 * MHz, max = 38 * MHz, unit="MHz", ndecimals=6))
-        self.setattr_argument("ramp_rate", NumberValue(default=1, ndecimals=6))
-        self.setattr_argument("target_amplitude", NumberValue(default=0, min=self.lowerlim, max=1, ndecimals=6))
-        self.setattr_argument("attenuation", NumberValue(default=0, unit="dB", min=0, max=10))
-        self.setattr_argument("time_step", NumberValue(default=100 * ms, unit="ms", min=0))
+        self.upperlim = 0.14
+        self.dataReprate= 100
+        self.setattr_argument("frequency", NumberValue(default=37.097*MHz, min = 36 * MHz, max = 38 * MHz, unit="MHz", ndecimals=6), tooltip="Urukul0Ch0")
+        self.setattr_argument("ramp_rate", NumberValue(default=2e-05, ndecimals=6), tooltip="Urukul0Ch0")
+        self.setattr_argument("target_amplitude", NumberValue(default=0, min=self.lowerlim, max=self.upperlim, ndecimals=6), tooltip="Urukul0Ch0")
+        self.setattr_argument("attenuation", NumberValue(default=0, unit="dB", min=0, max=10), tooltip="Urukul0Ch0")
+        self.setattr_argument("time_step", NumberValue(default=10 * ms, unit="ms", min=0*ms,ndecimals=6))
+        self.setattr_argument("wait_time", NumberValue(default=1*s, unit="s", min=0 * s, ndecimals=6))
         self.setattr_argument("num_points", NumberValue(default = 1000))
         self.amplitude=self.get_dataset("UrukulCh0_RFamp")
         self.setattr_device("scheduler")
@@ -22,11 +28,13 @@ class AmplitudeRamp(EnvExperiment):
        # self.target_amplitude=round(self.target_amplitude
 
     def prepare(self):
-        self.set_dataset("Amplitude", np.full(int(self.num_points), float(np.nan)), broadcast=True, archive=True)
-        self.set_dataset("Time", np.full(int(self.num_points), float(np.nan)), broadcast=True, archive=True)
+        self.set_dataset("Amplitude", np.full(int(self.num_points), float(np.nan)), broadcast=True, archive=False)
+        #self.set_dataset("Time", np.linspace(0.0,1.1,int(self.num_points)), broadcast=True, archive=True)
+        self.set_dataset("Time", np.full(int(self.num_points), float(np.nan)), broadcast=True, archive=False)
         self.int_points = int(self.num_points)
-        command = "${artiq_applet}plot_xy Amplitude --x Time"
+        command = "${artiq_applet}plot_xy Amplitude --x Time --fit Amplitude"
         self.ccb.issue("create_applet", "Amplitude Ramp", command)
+
 
 
 
@@ -40,37 +48,67 @@ class AmplitudeRamp(EnvExperiment):
     #     self.urukul0_ch0.sw.on()
     #
     #     delay(5 * ms)
-
     @kernel
-    def krun(self):
+    def activateUrukul(self):
         self.core.reset()
+        self.urukul0_cpld.init()  # new
         self.urukul0_ch0.cpld.init()
         self.urukul0_ch0.init()
-       # amp = self.urukul0_ch0.get_amplitude()
-        delay(1 * ms)
-        self.urukul0_ch0.set(frequency=self.frequency,amplitude=self.amplitude)
-        # if (self.amplitude==self.lowerlim):
-        #     self.urukul0_ch0.sw.on()
-        print(self.amplitude)
-        delay(2*ms)
-        #self.urukul0_ch0.sw.on()
-        amp=self.amplitude
+        delay(20*ms)
         delay(1*ms)
+        if (self.activateRF):
+            self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude)
+            self.urukul0_ch0.sw.on()
+            print("Urukul0 ch0 on")
+            print(self.amplitude)
+            delay(1*ms)
+            delay(4 * ms)
+            self.krun(self.target_amplitude)
+        else:
+            #self.target_amplitude=self.lowerlim # always will ramp to lower value before turning off
+            self.krun(self.lowerlim)
+            self.urukul0_ch0.sw.off()
+            delay(4*ms)
+            print("Urukul0 ch0 off")
+
+
+
+    @kernel
+    def krun(self,targetamp):
+        #self.core.reset()
+        # #self.ttl0.input()
+        # self.urukul0_cpld.init() #new
+        # self.urukul0_ch0.cpld.init()
+        # self.urukul0_ch0.init()
+       # amp = self.urukul0_ch0.get_amplitude()
+       #  delay(1 * ms)
+       #  self.urukul0_ch0.set(frequency=self.frequency,amplitude=self.amplitude)
+       #  self.urukul0_ch0.sw.on()
+       #  print(self.amplitude)
+       #delay(2*ms)
+
+
+       # self.urukul0_ch0.sw.on()
+        amp=self.amplitude
+        delay(2*ms)
+
+
+
         # sign = (self.target_amplitude - self.urukul0_ch0.get_amplitude()) / np.abs(
         #     self.target_amplitude - self.urukul0_ch0.get_amplitude())
         # self.ramp = np.array([self.urukul0_ch0.get_amplitude() + i * self.ramp_rate * sign for i in range(
         #     int(np.abs(self.urukul0_ch0.get_ampltiude() - self.target_amplitude) / self.ramp_rate))])
         # self.ramp[-1] = self.target_amplitude
 
-       # delay(10000 * ms)
+        #delay(10000 * ms)
 
         #self.initialize_urukul()
         #self.urukul0_ch0.sw.off()
         idx = 0
         time = 0.0
-        if self.target_amplitude > amp:
+        if targetamp > amp:
             #delay(10*ms)
-            while amp < self.target_amplitude:
+            while amp < targetamp:
                 #delay(10 * ms)
                 # try:
                 #     if self.scheduler.check_pause():
@@ -83,22 +121,29 @@ class AmplitudeRamp(EnvExperiment):
 
                 ampplus=(amp + self.ramp_rate)
                 self.urukul0_ch0.set(frequency=self.frequency,amplitude=ampplus)
-                delay(1*ms)
+                delay(2*ms)
                 self.set_dataset("UrukulCh0_RFamp", ampplus, broadcast=True, persist=True)
-                if (idx % 100 == 0):
-                    self.mutate_dataset("Amplitude", idx // 100, ampplus)
-                    self.mutate_dataset("Time", idx // 100, time)
+                #print(amp)
+                #for multiple points
+                if (idx % self.dataReprate == 0):
+                    self.changeDataset(ampplus, time,self.dataReprate,idx)
+                # for testing a few points
+                # self.mutate_dataset("Amplitude", idx, ampplus)
+                # self.mutate_dataset("Time", idx, time)
+
+
                 # for i in range(self.int_points):
                 #     self.mutate_dataset("Amplitude", i, ampplus)
                 #     self.mutate_dataset("Time", i, time + i)
-                amp  =ampplus
+                amp=ampplus
                 delay(self.time_step)
-                time += (self.time_step) * 1000
+                time += (self.time_step)# * 1000
                 idx +=1
+                delay(2 * ms)
 
         else:
 
-            while amp > self.target_amplitude:
+            while amp > targetamp:
                 # try:
                 #     if self.scheduler.check_pause():
                 #         self.core.comm.close()
@@ -107,38 +152,77 @@ class AmplitudeRamp(EnvExperiment):
                 #     print("Terminated gracefully")
                 #     return
              #   self.check_termination()
-
                 ampminus=(amp - self.ramp_rate)
                 self.urukul0_ch0.set(frequency=self.frequency, amplitude=ampminus)
-                delay(1 * ms)
+                delay(2 * ms)
                 self.set_dataset("UrukulCh0_RFamp", ampminus, broadcast=True, persist=True)
-                if(idx % 100 == 0):
-                    self.mutate_dataset("Amplitude", idx//100, ampminus)
-                    self.mutate_dataset("Time", idx//100, time)
+                #print(amp)
+                # for multiple points
+                if(idx % self.dataReprate == 0):
+                    self.changeDataset(ampminus, time, self.dataReprate,idx)
+                    # self.mutate_dataset("Amplitude", idx//5, ampminus)
+                    # self.mutate_dataset("Time", idx//5, time)
+                # for testing a few points
+                # self.mutate_dataset("Amplitude", idx, ampminus)
+                # self.mutate_dataset("Time", idx, time)
                 amp = ampminus
                 delay(self.time_step)
-                time += self.time_step * 1000
+                time += self.time_step# * 1000
                 idx += 1
-                print(idx)
+                delay(2 * ms)
                 # self.urukul0_ch0.sw.off()
                 # delay(1*ms)
+        print("Ramp complete")
+        self.urukul0_ch0.set(frequency=self.frequency,amplitude=targetamp)
+        delay(20 * ms)
+        self.set_dataset("UrukulCh0_RFamp",targetamp, broadcast=True, persist=True )
+        delay(20 * ms)
 
-        self.urukul0_ch0.set(frequency=self.frequency,amplitude=self.target_amplitude)
-        delay(2 * ms)
-        self.set_dataset("UrukulCh0_RFamp",self.target_amplitude, broadcast=True, persist=True )
+        # Now setting the loop to wait.
 
-    @rpc(flags={"async"})
-    def check_termination(self):
-        try:
-            if self.scheduler.check_pause():
-                self.core.comm.close()
-                self.scheduler.pause()
-        except TerminationRequested:
-            print("Terminated gracefully")
-            return
+        # time0=time+self.wait_time
+        # idx=idx//self.dataReprate
+        # A=0
+        # while(time<time0):
+        #     timelib.sleep(self.time_step*self.dataReprate)
+        #     #if (idx % self.dataReprate == 0):
+        #     #delay(self.time_step*self.dataReprate)
+        #     #delay(2 *self.wait_time* ms) #  works only if this delay scales with the wait time
+        #     #print(time)
+        #     #A=self.ttl0.gate_rising(self.time_step)
+        #     #delay(2*ms)
+        #     #float(self.ttl0.count(A))
+        #     self.changeDataset(self.target_amplitude, time, 1, idx)
+        #     idx += 1
+        #     time += self.time_step*self.dataReprate
+        #     #delay(10*ms)10*ms
 
+        #print("End of wait time")
+
+        # Now also setting the loop to ramp back to previous value
+        # better to complete ramp up down in a separate function
+
+
+    #@rpc(flags={"async"})
+    @kernel
+    def changeDataset(self,amp,tm,mod,idx):
+        self.mutate_dataset("Amplitude", idx // mod, amp)
+        self.mutate_dataset("Time", idx // mod, tm)
+
+    # @rpc(flags={"async"})
+    # def check_termination(self):
+    #     try:
+    #         if self.scheduler.check_pause():
+    #             self.core.comm.close()
+    #             self.scheduler.pause()
+    #     except TerminationRequested:
+    #         print("Terminated gracefully")
+    #         return
+
+    #@kernel
     def run(self):
-        self.krun()
+        self.activateUrukul()
+       # self.krun()
 
 
 

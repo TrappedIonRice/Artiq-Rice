@@ -49,7 +49,7 @@ class RAM_modulation_sinusoid(EnvExperiment):
 
 	# Class that modulates a basic sinusoid. Attempts to delay, amplify, deamplify,
 	# ramp, and damp DDS signals. Uses TTL Signaling to help read signals with
-	# an oscilloscope.
+	# an oscilloscurukul0_ch0e.
 	# This class writes to the Control Function Registers, which gets read to
 	# modulate the DDS signal.
 	# Note that TTL Updates are Atomic and DDS Updates are NOT Atomic. This means
@@ -139,7 +139,7 @@ class Amplitude_modulation(EnvExperiment):
 
 	# Class that modulates a basic sinusoid. Attempts to delay, amplify, deamplify,
 	# ramp, and damp DDS signals. Uses TTL Signaling to help read signals with
-	# an oscilloscope.
+	# an oscilloscurukul0_ch0e.
 	# This class writes to the Control Function Registers, which gets read to
 	# modulate the DDS signal.
 	# Note that TTL Updates are Atomic and DDS Updates are NOT Atomic. This means

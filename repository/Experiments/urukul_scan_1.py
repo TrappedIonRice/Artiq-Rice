@@ -3,8 +3,8 @@ from oitg.results import *
 import numpy as np
 from statistics import stdev
 from math import *
+import time as tm
 import oitg.fitting
-
 
 class runScan(Fragment):
 
@@ -12,62 +12,88 @@ class runScan(Fragment):
         self.setattr_device("core")
         self.setattr_device("core_dma")
         self.setattr_device("urukul0_cpld")  # Necessary for clock sync
-        for i in range(3):
+        for i in range(4):
             self.setattr_device("urukul0_ch" + str(i))
-        self.urukul_list = [self.urukul0_ch0, self.urukul0_ch1, self.urukul0_ch2]
+        #self.urukul_list = [self.urukul0_ch0, self.urukul0_ch1, self.urukul0_ch2, self.urukul0_ch3]
+        self.urukul_list = [self.urukul0_ch1, self.urukul0_ch2, self.urukul0_ch3] # avoid scanning RF
         ttl_params = ["ttl0_counter", "ttl1_counter", "ttl2_counter", "ttl3_counter"]
         self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0_counter"))
         self.setattr_device(str(self.INPUT_TTL)) #must typecast or NoneType error when recomputing args
         self.ttl = self.get_device(self.INPUT_TTL)
         self.setattr_device("ttl4")
-        self.setattr_result("result")
-   #     self.setattr_result("result2")
-        self.setattr_param("urukulchan2freq",FloatParam,"Urukul channel 2 freq", unit="MHz",default=1.0*MHz)
-        self.setattr_result("res_err", display_hints={"error_bar_for": self.result.path})
+
+
+        self.setattr_result("counts")
+   #    self.setattr_result("result2")
+       # self.setattr_param("urukulchan2freq",FloatParam,"Urukul channel 2 freq", unit="MHz",default=1.0*MHz)
+        self.setattr_result("res_err", display_hints={"error_bar_for": self.counts.path})
         self.points = [[0.0] * self.get_dataset("scan1.repetitions"), [0.0] * self.get_dataset("scan1.repetitions")]
         self.gate_end_mu = np.int64(0) # necessary or type error when assigning new val
         self.mean_rising_edges = 0.0
-        self.channel_num = [0, 1, 2]
+        self.channel_num = [1, 2, 3] # Doppler, Det, OP
 
     @kernel
-    def ON(self, pulse_time, freq, channel, const_time, num_repeat, detection_time, inpFreq, inpAmp):
+    def ON(self, pulse_time, freq, channel, const_time, num_repeat, detection_time, inpFreq, inpAmp, thresh_en,thresh_val):
 
         """Pulses urukul ch0, ch1, ch2, then counts num rising edges (cycles) from ttl0 for x us. Calculates mean
-        rising edges for a given num_repeat to push to result channel"""
+        rising edges for a given num_repeat to push to counts channel"""
 
         self.initializeUrukul()
         sum_rising_edges = 0.0
 
         self.urukul_list[1].set(freq)
 
+        # exp loop with dma
         with self.core_dma.record("seq"):
-            delay(30 * us)
-            for channel_num in range(3):
+            delay(30 * us) # This delay will exist between scan points
+            for channel_num in range(1,4):
                 if channel == channel_num:
                     self.pulseScanVal(channel, pulse_time, inpFreq, inpAmp)
                 else:
                     self.pulseUrukul(channel_num, const_time[channel_num], freq)
+            # for simple detection using edge counter
+            # self.ttl.gate_rising(detection_time)
+
+            # for debugging detection with pmt ttl
             with parallel:
                 self.ttl.gate_rising(detection_time)
                 with sequential:# Q: How to access number of scan points?
-                    maxttl=int(detection_time/pulse_time) # detection has to be greater than pulse time
+                    maxttl2=(detection_time/pulse_time) # detection has to be greater than pulse time
+                    maxttl=int(maxttl2)
                     for i in range(maxttl):
-                        self.ttl4.pulse(detection_time/(maxttl*2.0))
-                        delay(detection_time/(maxttl*2.0))
+                        self.ttl4.pulse(detection_time*i/(maxttl2*2.0))
+                        delay(detection_time/(maxttl2*2.0))
 
         # for DMA
         seq_handle = self.core_dma.get_handle("seq")
 
+
+        # repetition loop
         self.core.break_realtime()
         for i in range(num_repeat):
+            tempval = 0.0
             self.core_dma.playback_handle(seq_handle)
-            self.points[0][i] = float(self.ttl.fetch_count()) #I think can only be called once per gate event or blocks function until result is available
-       #     self.points[1][i] = self.points[0][i] * -1
-     #       print(float(self.ttl.fetch_count()))
-     #       self.points[1][i] = float(self.ttl.fetch_count()) * -1
-            sum_rising_edges += self.points[0][i]
+            self.points[0][i] = float(self.ttl.fetch_count()) #I think can only be called once per gate event or blocks function until counts is available
+        #     self.points[1][i] = self.points[0][i] * -1
+        #       print(float(self.ttl.fetch_count()))
+        #       self.points[1][i] = float(self.ttl.fetch_count()) * -1
+            if thresh_en:
+                tempval=self.state_thresholding(self.points[0][i],thresh_val)
+            else:
+                tempval=self.points[0][i]
+            sum_rising_edges= sum_rising_edges + tempval
 
-        self.mean_rising_edges = sum_rising_edges/(num_repeat)
+        # options for thresholding and/or histogram
+
+        self.mean_rising_edges = (sum_rising_edges)/(num_repeat)
+
+    @kernel
+    def state_thresholding(self,counts,thresh) -> TFloat:
+        if (counts>=thresh):
+            return 1.0
+        else:
+            return 0.0
+
 
 
     @kernel
@@ -75,11 +101,13 @@ class runScan(Fragment):
         self.core.reset()
         # self.core.break_realtime()
         self.urukul0_cpld.init()
-        self.urukul0_ch0.init()
+        #self.urukul0_ch0.init() # leave RF as is
         self.urukul0_ch1.init()
         self.urukul0_ch2.init()
+        self.urukul0_ch3.init()
         #self.ttl.input()
         self.ttl4.output()
+
 
 
     @kernel
@@ -101,17 +129,43 @@ class runScan(Fragment):
         delay(time)
         self.urukul_list[numChan].sw.off()
 
+# class histPlot(Fragment):
+#     def build_fragment(self, num_repeat):
+#         #self.setattr_result("histlist")
+#         #self.binlist=[]
+#         self.num_repeat=num_repeat
+#         self.setattr_device("ccb")
+#     def host_setup(self):
+#         self.set_dataset("HistCounts", np.full(int(self.num_repeat), float(np.nan)), broadcast=True, archive=True)
+#         command = "${artiq_applet}plot_hist HistCounts --x Bins"
+#         self.ccb.issue("create_applet", "Histogram Counts", command)
+
+        # @kernel
+        #
+        # def stopCooling()
+        #     self.initializeUrukul()
+        #     self.urukul0_ch0.
+        #
+        # @kernel
+        #
+        # def startCooling()
+
+
 class executeScan(ExpFragment):
 
     """ScanExperiment1"""
 
     def build_fragment(self):
-        self.setattr_param("channel", IntParam, "CHOOSE URUKUL CHANNEL (0, 1, OR 2)", 0)
-        self.setattr_param("time", FloatParam, "SET PULSE TIME (us)",unit="us", default= 1.0*us, min = 1.0*us) #changed min to 1 to avoid fit issue when 0
-        self.setattr_param("inputFreq", FloatParam, "SET CHANNEL FREQUENCY (MHz)",unit="MHz", default= 0.0*MHz)
-        self.setattr_param("inputAmp", FloatParam, "SET CHANNEL AMPLITUDE (FROM 0-1)", 0.0)
+        self.setattr_param("channel", IntParam, "CHOOSE URUKUL CHANNEL (0-3)", default=0)
+        self.setattr_param("time", FloatParam, "SET PULSE TIME ",unit="us", default= 1.000*us, min = 1.000*us) #changed min to 1 to avoid fit issue when 0
+        self.setattr_param("inputFreq", FloatParam, "SET CHANNEL FREQUENCY ",unit="MHz", default= 0.000*MHz)
+        self.setattr_param("inputAmp", FloatParam, "SET CHANNEL AMPLITUDE (FROM 0-1)", default=0.0)
         self.setattr_fragment("run", runScan) #Assigns runScan fragment and its attributes/functions to this fragment
+        #self.setattr_fragment("histplot",histPlot,len(self.run.points)) # creates histogram plot, maybe called too early
         fit_params = ["TIME", "FREQUENCY", "AMPLITUDE"]
+        self.setattr_argument("histogram",BooleanValue(default=False) ,tooltip="Save histogram data also")
+        self.setattr_argument("threshold_enable", BooleanValue(default=False),group="THRESHOLD", tooltip="Single ion threshhold")
+        self.setattr_argument("threshold_value",NumberValue(min=0.0, max=100, ndecimals=3, default=0), group="THRESHOLD", tooltip="Single ion threshhold")
         self.setattr_argument("SET_FIT_PARAM", EnumerationValue(fit_params, default="TIME"), group = "SET FIT")
         fits = ["cos", "decaying_sinusoid", "detuned_square_pulse", "exponential_decay",
                 "gaussian", "line", "lorentzian", "rabi_flop", "sinusoid", "v_function", "None"]
@@ -129,8 +183,13 @@ class executeScan(ExpFragment):
         self.t1 = self.get_dataset("scan1.time1") * us
         self.t2 = self.get_dataset("scan1.time2") * us
         self.t3 = self.get_dataset("scan1.time3") * us
+        self.t4 = self.get_dataset("scan1.time4") * us
         self.num_repeat = self.get_dataset("scan1.repetitions")
         self.detection_time = self.get_dataset("scan1.detection_time") * us
+        #print(self.detection_time)
+
+
+
 
     @kernel
     def run_once(self):
@@ -138,24 +197,47 @@ class executeScan(ExpFragment):
         """Retrieves constant values from dataset, then runs experiment"""
 
         scanFreq = self.inputFreq.get()
-        const_time = [self.t1, self.t2, self.t3]
+        const_time = [self.t1, self.t2, self.t3,self.t4]
         pulse_time = self.time.get()
         self.run.ON(pulse_time, self.freq, self.channel.get(), const_time, self.num_repeat, self.detection_time, scanFreq,
-                    self.inputAmp.get()) #calls ON function in runScan fragment
+                    self.inputAmp.get(),self.threshold_enable,self.threshold_value) #calls ON function in runScan fragment
 
-        # self.run.result.push(np.log(self.run.mean_rising_edges))
+        # self.run.counts.push(np.log(self.run.mean_rising_edges))
         self.host_push_results(self.run.mean_rising_edges, self.run.points)
-       # print(self.analyses.describe_online_analyses())
+
+        #print(self.analyses.describe_online_analyses())
         #self.test.push(np.sin(9586958.6))
 
 
     @rpc(flags={"async"})
     def host_push_results(self, mean_rising_edges, points):
-        self.run.result.push(mean_rising_edges)
-     #   self.run.result2.push(np.mean(points[1]))
-        self.run.res_err.push(5.0 / sqrt(self.num_repeat))
-        # print(oitg.fitting.exponential_decay.fit(self.time, self.run.result, self.run.res_err, evaluate_function=True,
+
+        self.run.counts.push(mean_rising_edges%3)
+        self.run.res_err.push(mean_rising_edges/ sqrt(self.num_repeat))
+        #print("{0:.7f}".format(mean_rising_edges/ sqrt(self.num_repeat)))
+        # print(oitg.fitting.exponential_decay.fit(self.time, self.run.counts, self.run.res_err, evaluate_function=True,
         #                                          evaluate_n=100))
+
+    def save_global_dataset(self):
+        '''
+         Save all global dataset parameters in a dictionary here.
+        '''
+
+        parentdir = r"C:\Artiq\artiq_new_installation" # system dependent
+        datasetdir = parentdir + "\dataset_db.pyon"
+        self.globaldataset = {}
+        f=open(datasetdir, 'r')
+        txt=f.readlines()
+        f.close() # must close the dataset file soon enough to reflect the updates.
+        for ele in txt[1:-1]: #ignoring curly braces
+            ele2 = ele.split(":") # some regex
+            ele3 = (ele2[0].split('    '))[-1]
+            ele4=''.join(list(ele3)[1:-1])
+            self.globaldataset[ele4]=self.get_dataset(ele4)
+    def host_cleanup(self):
+        self.save_global_dataset()
+        #print(self.run.counts)
+
 
     def get_default_analyses(self):
      #   lst_param = [self.x0, self.y0, self.y_inf, self.tau]
@@ -170,7 +252,7 @@ class executeScan(ExpFragment):
                 OnlineFit(self.CHOOSE_FIT,
                           data={
                               "x": self.dict_obj[self.SET_FIT_PARAM],
-                              "y": self.run.result,
+                              "y": self.run.counts,
                               "y_err": self.run.res_err,
                           },
                    #       constants= dict_constants
