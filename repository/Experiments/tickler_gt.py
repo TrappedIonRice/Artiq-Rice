@@ -1,5 +1,7 @@
 from artiq.experiment import *
 import numpy as np
+from ndscan import *
+import time
 
 class Tickle(EnvExperiment):
 
@@ -14,121 +16,92 @@ class Tickle(EnvExperiment):
         for i in ["0", "1"]:
             self.setattr_device("urukul0" + "_ch" + i)
 
-        self.setattr_device("ttl0") # PMT counter input to DIO
-        self.setattr_device("ttl4") # output of false signal
+        self.setattr_device("ttl0") # PMT counter received signal to DIO
+        self.setattr_device("ttl4") # output trigger to sync with tickle time
         self.setattr_device("urukul0_cpld") # What for?
 
         # EnumerationValue specifies an argument that can take a string value among a set of string values
-        self.setattr_argument("urukul_num", EnumerationValue(urukuls, default="0")) # specify urukul
-        self.setattr_argument("channel_num", EnumerationValue(channels, default="0")) # specify channel
 
-        self.setattr_argument("ch0", BooleanValue(default=False)) # toggle to turn on and off the channel
         self.setattr_argument("frequency", NumberValue(default=37.097 * MHz, unit="MHz", ndecimals=6), group='channel0')
         self.setattr_argument("amplitude", NumberValue(default=1, min=0, max=1, ndecimals=6), group='channel0')
         self.setattr_argument("attenuation", NumberValue(default=0, unit="dB", min=0, max=10), group='channel0')
 
-        self.setattr_argument("ch1", BooleanValue(default=False))
-        self.setattr_argument("frequency1", NumberValue(default=195 * MHz, unit="MHz", ndecimals=6), group='channel1')
-        self.setattr_argument("amplitude1", NumberValue(default=1, min=0, max=1, ndecimals=6), group='channel1')
-        self.setattr_argument("attenuation1", NumberValue(default=0, unit="dB", min=0, max=10), group='channel1')
+        self.setattr_argument("amplitude1", NumberValue(default=0.5, min=0, max=0.8, ndecimals=6), group='channel1')
 
-        self.setattr_argument("Turn_all_channels_off", BooleanValue(default=False)) # toggle to turn on and off all channels
+        self.setattr_argument("cooling_time", NumberValue(default=10*us, ndecimals=4, unit="us"))
+        self.setattr_argument("tickle_time", NumberValue(default=1*ms, ndecimals=4, unit="ms"))
+        self.setattr_argument("num_exp", NumberValue(default=10, ndecimals=0, step=1))
 
-        # What for?
-        self.dict_freq = {"0": self.frequency, "1": self.frequency1}
-        self.dict_amp = {"0": self.amplitude, "1": self.amplitude1}
-        self.dict_att = {"0": self.attenuation, "1": self.attenuation1}
+        # atributes for frequency scanning
+        self.setattr_argument("min_freq", NumberValue(default=1*MHz, unit="MHz", step=0.1, ndecimals=3))
+        self.setattr_argument("max_freq", NumberValue(default=10*MHz, unit="MHz", step=0.1, ndecimals=3))
+        self.setattr_argument("num_freq_pts", NumberValue(default=10, unit=None, scale=1, step=1, ndecimals=0, type='int'))
 
-        # Bools corresponding to on/off channels
-        set_channel = [self.ch0, self.ch1]
-
-        self.channels = [] # Will contain 'on' channels
-        self.frequencies = {}
-        self.amplitudes = {}
-        self.attenuations = {}
-        self.x_vals = []
-        self.y_vals = []
-        self.count = 0
-        self.time_stmp = 0
-
-        for i in range(len(set_channel)):
-            if set_channel[i]: # determines whether ch is on or off
-                self.channels.append(str(i))
-
-        # counter attributes
-        self.setattr_argument("Bin_Size", NumberValue(default=0.1, ndecimals=4, unit="s"))
-        self.setattr_argument("num_exp", NumberValue(default=1000, ndecimals=0, step=1))
-        self.setattr_argument("num_scan_pts", NumberValue(default=1000, ndecimals=0, step=1))
+        # for the creation of applets (plotting of results)
+        self.setattr_device("ccb")
 
     def prepare(self):
 
         # broadcast: the data is sent in real-time to the master, which dispatches it.
         # archive: the data is saved into the local storage of the current run (archived as a HDF5 file).
-        self.set_dataset("Tickler_counts_freq", np.full(self.num_points, float(np.nan)), broadcast=True, archive=True)
-        self.set_dataset("PMT_counts_y", np.full(self.num_points, float(np.nan)), broadcast=True, archive=True)
+        # Creates frequency range
+        self.freq_range=np.linspace(self.min_freq, self.max_freq, self.num_freq_pts)
+
+        # sets freq_range as a dataset
+        self.set_dataset("freq_range",  self.freq_range, broadcast=True, archive=True)
+        # setts datasets for plotting
+        self.set_dataset("Tickler_counts_freq", np.full(self.num_freq_pts, float(np.nan)), broadcast=True, archive=True)
+        self.set_dataset("Tickler_counts_y", np.full(self.num_freq_pts, float(np.nan)), broadcast=True, archive=True)
 
         # creates applet to plot the results
-        command = "${artiq_applet}plot_xy PMT_counts_y --x PMT_counts_x"
+        command = "${artiq_applet}plot_xy Tickler_counts_y --x Tickler_counts_freq"
         self.ccb.issue("create_applet", "Tickler", command)
 
-    # borrowed from pmt_counter.py file
+
     @kernel # following method is run in kernel
     def krun(self):
-        # next four lines identical to code from set_urukul_pmt_counter.py
         self.core.reset()
         delay(500 * us)
+        self.urukul0_ch0.cpld.init()
         self.urukul0_cpld.init() # what is the purpose of this?
         delay(500 * us)
 
         # DDS0 Doppler cooler "on"; we want it to run continuously through the run
-        self.urukul0_ch0.set(self.frequency, amplitude=self.amplitude, phase_mode=2)
+        self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude, phase_mode=2)
         self.urukul0_ch0.sw.on()
 
-        delay(10 * us)  # arbitrary; consider lower bound
-
-        # with no delay, run counter, tickler, false signal in parallel
-        # borrowed from method 3 from pmt_counter.py
-        '''
-            To run the PMT counter, signal pulse, and TTL4 false output signal
-            in parallel, use the following construct within @kernel
-                                                            def krun(self):
-
-            with parallel:
-                <counter>
-                <tickler>
-                <false signal>
-
-        '''
-
+        # scans through frequencies
         tracker1 = 0
-        while (tracker1 < self.num_scan_pts):
+        while (tracker1 < len(self.freq_range)):
+            # set tickler frequency
+            self.urukul0_ch1.set(frequency=self.freq_range[tracker1], amplitude=self.amplitude1, phase_mode=2)
 
+            # runs num_exp experiments with the same tickle frequency
             tracker2 = 0
-            self.urukul0_ch1.set(self.frequency, amplitude=self.amplitude, phase_mode=2) # with index of tracker1
+            counts = 0 # collects total counts over num_exp experiments
             while (tracker2 < self.num_exp):
+                delay(self.cooling_time)  # cooling time
+                self.ttl4.on() # turn on trigger signal from ttl4
+                delay(-100*ns) # to offset internal delays; the two signals start at the same time
+                self.urukul0_ch1.sw.on() # turn on tickler
+                countstime = self.ttl0.gate_rising(self.tickle_time)
+                # turn off tickler, false signal
+                self.urukul0_ch1.sw.off()
+                self.ttl4.off()
+                delay(50*us) # final delay to prevent underflow during experiment. Delay between shots should not cause problems esp since dds is in phase tracking mode.
 
-                # run the contents in parallel
+                counts += self.ttl0.count(countstime) # add to total counts
+                tracker2 += 1 # advance freq_range counter by 1
 
-                with parallel:
-                    # PMT counter
-                    # What do the next three lines do?
-                    countstime = self.ttl0.gate_rising(self.Bin_Size * s)
-                    delay(self.Bin_Size * s)
-                    self.count = self.ttl0.count(countstime)  # for ttl0_counter type only
-                    delay(10 * us)
+            self.mutate_dataset("Tickler_counts_freq", tracker1, self.freq_range[tracker1])
 
-                    # Tickler
-                    self.urukul0_ch1.pulse(self.Bin_Size*s + 10*ms + 1*ms)
-
-                    # False output signal from ttl4
-                    self.ttl4.pulse(self.Bin_Size*s + 10*ms + 1 * ms)
-
-            self.mutate_dataset("PMT_counts_x", tracker2, tracker2 * self.Bin_Size)
-            self.mutate_dataset("PMT_counts_y", tracker2, self.count / self.Bin_Size)
-
-                tracker2 += 1
+            # constant tickle time
+            self.mutate_dataset("Tickler_counts_y", tracker1, (counts / self.num_exp / self.tickle_time)) # average counts per second
 
             tracker1 += 1
 
         # DDS0 Doppler cooler "off"
-        self.urukul0_ch0.sw.off()
+        # self.urukul0_ch0.sw.off()
+
+    def run(self):
+        self.krun()
