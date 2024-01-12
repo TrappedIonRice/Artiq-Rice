@@ -51,10 +51,11 @@ class AmplitudeRamp(EnvExperiment):
     @kernel
     def activateUrukul(self):
         self.core.reset()
-        self.urukul0_cpld.init()  # new
+        delay(10 * ms)
         self.urukul0_ch0.cpld.init()
+        delay(10 * ms)
         self.urukul0_ch0.init()
-        delay(20*ms)
+        delay(10*ms)
         delay(1*ms)
         if (self.activateRF):
             self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude)

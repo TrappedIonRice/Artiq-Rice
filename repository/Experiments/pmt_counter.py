@@ -24,7 +24,7 @@ class PMTCounts(EnvExperiment):
         self.set_dataset("PMT_Counts.Y_vals", np.full(self.num_points, float(np.nan)), broadcast=True, archive=True)
         self.set_dataset("PMT_Counts.X_vals", np.full(self.num_points, float(np.nan)), broadcast=True, archive=True)
 
-        command = "${artiq_applet}plot_xy PMT_Counts.Y_vals --x PMT_Counts.X_vals"
+        command = "${artiq_applet}plot_xy PMT_Counts.Y_vals --x PMT_Counts.X_vals --fit PMT_Counts.Y_vals"
         self.ccb.issue("create_applet", "PMT Counts", command)
     # /\ /\ /\ /\ /\ /\ prepare /\ /\ /\ /\ /\ /\
 
@@ -52,17 +52,30 @@ class PMTCounts(EnvExperiment):
 
         time=0
         delay(1*ms)
-        while(time<self.num_points):
+        # while(time<self.num_points):
+        #
+        #     self.ttl0_counter.gate_rising(self.Bin_Size * s)
+        #     delay(self.Bin_Size*s)
+        #     self.count=self.ttl0_counter.fetch_count()
+        #     delay(10*ms)
+        #     #t1=tm.perf_counter()
+        #     self.mutate_dataset("PMT_Counts.X_vals", time, time*self.Bin_Size)
+        #     self.mutate_dataset("PMT_Counts.Y_vals", time, self.count / self.Bin_Size)
+        #     delay(1*ms)
+        #     time += 1
 
-            self.ttl0_counter.gate_rising(self.Bin_Size * s)
-            delay(self.Bin_Size*s)
-            self.count=self.ttl0_counter.fetch_count()
-            delay(10*ms)
-            #t1=tm.perf_counter()
-            self.mutate_dataset("PMT_Counts.X_vals", time, time*self.Bin_Size)
-            self.mutate_dataset("PMT_Counts.Y_vals", time, self.count / self.Bin_Size)
-            delay(1*ms)
-            time += 1
+        while True:
+
+            # t1=tm.perf_counter()
+            for i in range(1, self.num_points + 1, 1):
+                self.ttl0_counter.gate_rising(self.Bin_Size * s)
+                delay(self.Bin_Size * s)
+                self.count = self.ttl0_counter.fetch_count()
+                delay(10 * ms)
+                self.mutate_dataset("PMT_Counts.X_vals", self.num_points-i, time * self.Bin_Size)
+                self.mutate_dataset("PMT_Counts.Y_vals", self.num_points-i, self.count / self.Bin_Size)
+                delay(1 * ms)
+                time += 1
 
 
     def run(self):

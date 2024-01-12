@@ -44,6 +44,7 @@ class DC_Control(EnvExperiment):
         # index=abstract DAC channel/ Trap electrode no., value= real Zotino DAC channel/DC, eg. pos 0 val 2 means DC0 (RF electrode) of trap will map with value of DACpin 2
         self.DCElectrodeMapping = [0,1,2,3,5,7,4,6,8,9,10,11] # 2023/11/1  # change config here
         # self.DCElectrodeMapping = [0,1,2,3,4,5,6,7,8,9,10,11]   #2023/10/20
+        self.set_dataset("DC.ElectrodeMapping", self.DCElectrodeMapping, broadcast=True, archive=True, persist=True)
         #[0, 2, 1, 3, 4, 6, 5, 8, 7, 10, 9, 11]#self.get_dataset("DC.ElectrodeMapping", archive=True)
         # eg. [0, 2, 1, 3, 4, 5, 6, 8, 7, 9, 10, 11]
 
