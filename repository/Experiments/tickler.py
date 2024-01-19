@@ -10,10 +10,10 @@ class Tickle(EnvExperiment):
         self.setattr_device("core")
         # user arguments
         urukuls = ["0"]  # the list of the urukuls availible
-        channels = ["0", "1"]  # list of channel on a given urukul; only use channel 0
+        channels = ["1", '3']  # list of channel on a given urukul; only use channel 0
 
         # To set all channels of the urukul (device drivers) as attributes
-        for i in ["0", "1"]:
+        for i in channels:
             self.setattr_device("urukul0" + "_ch" + i)
 
         self.setattr_device("ttl0") # PMT counter received signal to DIO
@@ -62,19 +62,19 @@ class Tickle(EnvExperiment):
     def krun(self):
         self.core.reset()
         delay(500 * us)
-        self.urukul0_ch0.cpld.init()
+        self.urukul0_ch1.cpld.init()
         self.urukul0_cpld.init() # what is the purpose of this?
         delay(500 * us)
 
         # DDS0 Doppler cooler "on"; we want it to run continuously through the run
-        self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude, phase_mode=2)
-        self.urukul0_ch0.sw.on()
+        self.urukul0_ch1.set(frequency=self.frequency, amplitude=self.amplitude, phase_mode=2)
+        self.urukul0_ch1.sw.on()
 
         # scans through frequencies
         tracker1 = 0
         while (tracker1 < len(self.freq_range)):
             # set tickler frequency
-            self.urukul0_ch1.set(frequency=self.freq_range[tracker1], amplitude=self.amplitude1, phase_mode=2)
+            self.urukul0_ch3.set(frequency=self.freq_range[tracker1], amplitude=self.amplitude1, phase_mode=2)
 
             # runs num_exp experiments with the same tickle frequency
             tracker2 = 0
@@ -83,10 +83,10 @@ class Tickle(EnvExperiment):
                 delay(self.cooling_time)  # cooling time
                 self.ttl4.on() # turn on trigger signal from ttl4
                 delay(-100*ns) # to offset internal delays; the two signals start at the same time
-                self.urukul0_ch1.sw.on() # turn on tickler
+                self.urukul0_ch3.sw.on() # turn on tickler
                 countstime = self.ttl0.gate_rising(self.tickle_time)
                 # turn off tickler, false signal
-                self.urukul0_ch1.sw.off()
+                self.urukul0_ch3.sw.off()
                 self.ttl4.off()
                 delay(50*us) # final delay to prevent underflow during experiment. Delay between shots should not cause problems esp since dds is in phase tracking mode.
 
