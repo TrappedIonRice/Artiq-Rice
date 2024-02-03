@@ -235,22 +235,20 @@ class DC_Control(EnvExperiment):
         self.electrodeUpdate(V,range(12),[-1]+[1]*10+[-1])
 
 
+
     @kernel
-    def initialize(self):
+    def krun(self):
         self.core.reset()
         self.zotino0.init()
         # self.urukul0_cpld.init() # for now this isn't doing anything
         # self.urukul0_ch0.init()
         delay(10 * ms)
-    @kernel
-    def krun(self):
-        self.initialize()
         # updating zotino with all voltage combinations on electrodes.
         for i in range(12):
             self.zotino0.write_dac(self.DCElectrodeMapping[i],
                                    self.DCElectrodeValues[self.DCElectrodeMapping[i]])
             self.zotino0.load()
-            delay(10*ms)
+            delay(0.1*ms)
 
     def run(self):
         self.krun()

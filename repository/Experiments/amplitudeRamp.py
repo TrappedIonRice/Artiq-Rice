@@ -26,7 +26,7 @@ class AmplitudeRamp(EnvExperiment):
         self.lowerlim=0.0001
         self.upperlim = 0.14
         self.dataReprate= 100
-        self.setattr_argument("frequency", NumberValue(default=36.916*MHz, min = 36 * MHz, max = 38 * MHz, unit="MHz", ndecimals=6), tooltip="Urukul0Ch0")
+        self.setattr_argument("frequency", NumberValue(default=25.671*MHz, min = 25 * MHz, max = 27 * MHz, unit="MHz", ndecimals=6), tooltip="Urukul0Ch0")
         self.setattr_argument("ramp_rate", NumberValue(default=2e-05, ndecimals=6), tooltip="Urukul0Ch0")
         self.setattr_argument("target_amplitude", NumberValue(default=0, min=self.lowerlim, max=self.upperlim, ndecimals=6), tooltip="Urukul0Ch0")
         self.setattr_argument("attenuation", NumberValue(default=0, unit="dB", min=0, max=10), tooltip="Urukul0Ch0")
@@ -59,16 +59,17 @@ class AmplitudeRamp(EnvExperiment):
     @kernel
     def initialize_urukul(self):
         self.core.reset()
-        self.urukul0_cpld.init()
+        #self.urukul0_cpld.init()
         self.urukul0_ch0.cpld.init()
         self.urukul0_ch0.init()
-        self.urukul0_ch1.init()
-        self.urukul0_ch2.init()
-        self.urukul0_ch3.init()
-        delay(5 * ms)
+        #self.urukul0_ch1.init()
+        #self.urukul0_ch2.init()
+        #self.urukul0_ch3.init()
+        delay(1 * ms)
 
     @kernel
     def turn_on_nonRFDDS(self):
+        self.urukul0_ch1.init()
         self.urukul0_ch1.set(frequency=self.DopplerFrequency, amplitude=self.DopplerAmp)
         self.urukul0_ch1.set_att(0 * dB)
         if self.ch1 == True:
@@ -76,6 +77,7 @@ class AmplitudeRamp(EnvExperiment):
         else:
             self.urukul0_ch1.sw.off()
 
+        self.urukul0_ch2.init()
         self.urukul0_ch2.set(frequency=self.DetectionFrequency, amplitude=self.DetectionAmp)
         self.urukul0_ch2.set_att(0 * dB)
         if self.ch2 == True:
@@ -83,46 +85,62 @@ class AmplitudeRamp(EnvExperiment):
         else:
             self.urukul0_ch2.sw.off()
 
+        self.urukul0_ch3.init()
         self.urukul0_ch3.set(frequency=self.OPFrequency, amplitude=self.OPAmp)
         self.urukul0_ch3.set_att(0 * dB)
         if self.ch3 == True:
             self.urukul0_ch3.sw.on()
         else:
             self.urukul0_ch3.sw.off()
+        delay(1*ms)
+
 
     @kernel
     def turn_on(self):
         self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude)
         self.urukul0_ch0.set_att(0*dB)
-
         self.urukul0_ch0.sw.on()
 
-        delay(2*ms)
+        delay(1*ms)
 
 
     @kernel
     def turn_off(self):
         self.urukul0_ch0.sw.off()
-        delay(2 * ms)
+        delay(1 * ms)
 
     @kernel
     def activateUrukul(self):
-        self.initialize_urukul()
-        self.turn_on_nonRFDDS()
+
+        # sequence of commands is very important to hold ions
+        self.core.reset()
+        # self.urukul0_cpld.init()
+        self.urukul0_ch0.cpld.init()
+        self.urukul0_ch0.init()
+        #delay(10 * ms)
+        #self.initialize_urukul()
 
         if (self.activateRF):
-            self.turn_on()
+            self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude)
+            self.urukul0_ch0.set_att(0 * dB)
+            self.urukul0_ch0.sw.on()
             print("Urukul0 ch0 on")
             print(self.amplitude)
-            delay(4*ms)
+            delay(1*ms)
+
+            self.turn_on_nonRFDDS()
             self.krun(self.target_amplitude)
 
         else:
             #self.target_amplitude=self.lowerlim # always will ramp to lower value before turning off
+            self.turn_on_nonRFDDS()
             self.krun(self.lowerlim)
             self.turn_off()
-            delay(2*ms)
+            delay(1*ms)
             print("Urukul0 ch0 off")
+        # self.urukul0_ch1.init()
+        # self.urukul0_ch2.init()
+        # self.urukul0_ch3.init()
 
 
 
@@ -226,7 +244,7 @@ class AmplitudeRamp(EnvExperiment):
                 # self.urukul0_ch0.sw.off()
                 # delay(1*ms)
         print("Ramp complete")
-        delay(5*ms)
+        delay(4*ms)
         self.urukul0_ch0.set(frequency=self.frequency,amplitude=targetamp)
         delay(1 * ms)
         self.set_dataset("UrukulCh0_RFamp",targetamp, broadcast=True, persist=True )
