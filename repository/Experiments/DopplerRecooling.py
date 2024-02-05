@@ -14,6 +14,7 @@ class runScan(Fragment):
         self.setattr_device("urukul0_cpld")  # Necessary for clock sync
         self.setattr_device("urukul0_ch0") # RF channel is very imp
         self.setattr_device("urukul0_ch1")
+        self.RFamp=self.get_dataset('UrukulCh0_RFamp')
         ttl_params = ["ttl0"]
         self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0"))
         self.setattr_device(str(self.INPUT_TTL)) #must typecast or NoneType error when recomputing args
@@ -40,6 +41,9 @@ class runScan(Fragment):
         self.core.break_realtime()
         #self.urukul0_cpld.init()
         self.urukul0_ch0.init() # leave RF as is
+        self.urukul0_ch0.set_att(0*dB)
+        self.urukul0_ch0.set(amplitude=self.RFamp)
+        delay(1*us)
         self.urukul0_ch0.sw.on() # turns it on as in the last config
         self.urukul0_ch1.init()
         # self.ttl.input()
