@@ -15,6 +15,9 @@ class runScan(Fragment):
         #self.setattr_device("core_dma")
         self.setattr_device("urukul0_cpld")  # Necessary for clock sync
         self.setattr_device("urukul0_ch0") # RF channel is very imp
+        self.urukul0_ch0.set_att(0 * dB)
+        self.urukul0_ch0.set(amplitude=self.RFamp)
+        delay(1 * us)
         self.setattr_device("urukul0_ch1")
         ttl_params = ["ttl0"]
         self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0"))
