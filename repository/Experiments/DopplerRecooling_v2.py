@@ -1,9 +1,11 @@
 from ndscan.experiment import *
 from oitg.results import *
 import numpy as np
+from matplotlib import pyplot as plt
 from statistics import stdev
 from math import *
 import time as tm
+import datetime
 import oitg.fitting
 
 class runScan(Fragment):
@@ -21,6 +23,7 @@ class runScan(Fragment):
         self.setattr_device("ttl4") # triggering TimeHarp
 
 
+       # self.setattr_result("counts_arr", result_channels="Opaq")
         self.setattr_result("counts")
    #    self.setattr_result("result2")
        # self.setattr_param("urukulchan2freq",FloatParam,"Urukul channel 2 freq", unit="MHz",default=1.0*MHz)
@@ -28,7 +31,10 @@ class runScan(Fragment):
         self.points = [[0.0] * self.get_dataset("scan1.repetitions"), [0.0] * self.get_dataset("scan1.repetitions")]
         self.gate_end_mu = np.int64(0) # necessary or type error when assigning new val
         self.mean_rising_edges = 0.0
-        self.channel_num = [1] # Doppler, Det, OP
+        self.channel_num = [1]
+        self.bins = self.get_dataset("TimeBins")
+        self.counts_arr = np.zeros(self.bins)
+
 
     @kernel
     def ON(self, wait_time, coolingfreq,coolingamp, coolingtime, detFreq,detAmp, detTime, num_repeat):
@@ -46,8 +52,11 @@ class runScan(Fragment):
         self.ttl4.output()
 
         sum_rising_edges = 0.0
+        bin_time=detTime/self.bins
 
         self.urukul0_ch1.set_att(0*dB)
+        for j in range(self.bins):
+            self.counts_arr[j]=0.0
 
         #exp loop without dma
         i=0
@@ -76,7 +85,13 @@ class runScan(Fragment):
             # for simple detection using edge counter
             # self.ttl.gate_rising(detection_time)
             # without edge counter
-            detcounts_time = self.ttl.gate_rising(detTime)
+            j=0
+            while j<self.bins :
+                delay(2 * us)
+                detcounts_time=self.ttl.gate_rising(bin_time)
+
+                self.counts_arr[j] = self.counts_arr[j] + (1-np.exp(-j/(0.1*self.bins ))) + 0 * self.ttl.count(detcounts_time)
+                j=j+1
 
             # with parallel:
             #     with sequential:# Q: How to access number of scan points?
@@ -87,18 +102,19 @@ class runScan(Fragment):
             #             delay(detTime/(maxttl2*2.0))
 
             # Detection DC off
+            delay(2*us)
             self.urukul0_ch1.sw.off()
             # falling trigger to timeharp
             self.ttl4.off()
-            delay(-2*us) # to match TTL4 falling edge and Doppler on edges
+            delay(10*us) # to match TTL4 falling edge and Doppler on edges
             #continue Doppler
             self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
-            #delay(5 * us)
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
 
-            #extra computations always left at the end of the scan, or else RTIO underflow occurs
-            sum_rising_edges = sum_rising_edges + self.ttl.count(detcounts_time)
+            #generally extra computations always left at the end of the scan, or else RTIO underflow occurs
 
+            # for i in range(self.bins):
+            #     self.counts_arr[i]=self.counts_arr[i] + i+0*self.ttl.count(detcounts_time_list)
             i=i+1
 
 
@@ -142,34 +158,23 @@ class runScan(Fragment):
         self.mean_rising_edges = (sum_rising_edges)/(num_repeat)
 
 
-
 class executeScan(ExpFragment):
 
-    """Doppler Recooling"""
+    """Doppler Recooling v2"""
 
     def build_fragment(self):
        # self.setattr_param("channel", IntParam, "CHOOSE URUKUL CHANNEL (0-3)", default=0)
-        self.setattr_param("waittime", FloatParam, "Set Wait Time ",unit="ms", default= 10.000*ms, min = 0.00*ms) #changed min to 1 to avoid fit issue when 0
-        self.setattr_param("recooltime", FloatParam, "Set Recooling Time ", unit="ms", default=10.000 * ms, min=0.00 * ms)  # changed min to 1 to avoid fit issue when 0
+        self.setattr_param("waittime", FloatParam, "Set Wait Time ",unit="ms", default= 100.000*ms, min = 0.100*ms) #changed min to 1 to avoid fit issue when 0
+        self.setattr_param("recooltime", FloatParam, "Set Recooling Time ", unit="ms", default=100.000 * ms, min=0.001 * ms)  # changed min to 1 to avoid fit issue when 0
         self.setattr_param("recoolfreq", FloatParam, "Set Recooling Frequency ",unit="MHz", default= 0.000*MHz)
         self.setattr_param("recoolamp", FloatParam, "Set Recooling Amplitude (FROM 0-0.8)", default=0.0, max = 0.800)
         self.setattr_fragment("run", runScan) #Assigns runScan fragment and its attributes/functions to this fragment
-        #self.setattr_fragment("histplot",histPlot,len(self.run.points)) # creates histogram plot, maybe called too early
         fit_params = ["TIME", "FREQUENCY", "AMPLITUDE"]
-        # self.setattr_argument("histogram",BooleanValue(default=False) ,tooltip="Save histogram data also")
-        # self.setattr_argument("threshold_enable", BooleanValue(default=False),group="THRESHOLD", tooltip="Single ion threshhold")
-        # self.setattr_argument("threshold_value",NumberValue(min=0.0, max=100, ndecimals=3, default=0), group="THRESHOLD", tooltip="Single ion threshhold")
         self.setattr_argument("SET_FIT_PARAM", EnumerationValue(fit_params, default="TIME"), group = "SET FIT")
         fits = ["cos", "decaying_sinusoid", "detuned_square_pulse", "exponential_decay",
                 "gaussian", "line", "lorentzian", "rabi_flop", "sinusoid", "v_function", "None"]
         self.setattr_argument("CHOOSE_FIT", EnumerationValue(fits, default="None"), group = "SET FIT")
-        # self.setattr_argument("x0", NumberValue(default=0, ndecimals=6), group = "SET FIT")
-        # self.setattr_argument("y0", NumberValue(default=0, ndecimals=6), group = "SET FIT")
-        # self.setattr_argument("y_inf", NumberValue(default=0, ndecimals=6), group = "SET FIT")
-        # self.setattr_argument("tau", NumberValue(default=0*us, unit = "us", ndecimals=6), group = "SET FIT")
-        self.dict_obj = {"TIME" : self.waittime, "AMPLITUDE" : self.recoolamp, "FREQUENCY" : self.recoolfreq}
- #       self.analyses = AnnotationContext()
-        #self.setattr_result("test")
+
 
     def host_setup(self):           #reserved key word
         self.cooling_freq = self.get_dataset("Doppler.Frequency")
@@ -184,25 +189,20 @@ class executeScan(ExpFragment):
     def run_once(self):
 
         """Retrieves constant values from dataset, then runs experiment"""
-
-        # detFreq = self.recoolfreq.get()
-        # detAmp = self.recoolamp.get()
-        # detTime=self.recooltime.get()
-        # waitTime=self.waittime.get()
-        self.run.ON(self.waittime.get(), self.cooling_freq,self.cooling_amp,self.cooling_time, self.recoolfreq.get(), self.recoolamp.get(), self.recooltime.get(), self.num_repeat) #calls ON function in runScan fragment
+        self.run.ON(self.waittime.get(), self.cooling_freq,self.cooling_amp,self.cooling_time,\
+                    self.recoolfreq.get(), self.recoolamp.get(), self.recooltime.get(), self.num_repeat) #calls ON function in runScan fragment
 
         # self.run.counts.push(np.log(self.run.mean_rising_edges))
-        self.host_push_results(self.run.mean_rising_edges, self.run.points)
+        #self.host_push_results(self.run.mean_rising_edges, self.run.points)
 
-        #print(self.analyses.describe_online_analyses())
-        #self.test.push(np.sin(9586958.6))
 
 
     @rpc(flags={"async"})
     def host_push_results(self, mean_rising_edges, points):
-
-        self.run.counts.push(mean_rising_edges)
-        self.run.res_err.push(mean_rising_edges/ sqrt(self.num_repeat))
+        pass
+        #print(self.run.counts_arr)
+        # self.run.counts.push(mean_rising_edges)
+        # self.run.res_err.push(mean_rising_edges/ sqrt(self.num_repeat))
         #print("{0:.7f}".format(mean_rising_edges/ sqrt(self.num_repeat)))
         # print(oitg.fitting.exponential_decay.fit(self.time, self.run.counts, self.run.res_err, evaluate_function=True,
         #                                          evaluate_n=100))
@@ -224,31 +224,25 @@ class executeScan(ExpFragment):
             ele4=''.join(list(ele3)[1:-1])
             self.globaldataset[ele4]=self.get_dataset(ele4)
     def host_cleanup(self):
+        print(self.run.counts_arr)
+
+        plt.figure(1)
+        plt.plot(np.arange(self.run.bins)*self.recooltime.get()*10**3/self.run.bins,self.run.counts_arr)
+        plt.grid(visible=True)
+        plt.ylabel('Counts')
+        plt.xlabel('Recooling Time (ms)')
+
+        plt.show()
         self.save_global_dataset()
+
+        dataarr=np.vstack((np.arange(self.run.bins)*self.recooltime.get()*10**3/self.run.bins,self.run.counts_arr ))
+        dir=r'Z:\Lab Rice\Projects in Progress\AM\Artiq\sampl_results\recooling_samples'
+        filename=r'\recooling_'+datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S")+'.csv'
+        np.savetxt(dir+filename,dataarr, delimiter=',')
+        print('Saved data to :'+dir+filename)
         #print(self.run.counts)
 
 
-    def get_default_analyses(self):
-     #   lst_param = [self.x0, self.y0, self.y_inf, self.tau]
-     #   param_names = ['x0', 'y0', 'y_inf', 'tau']
-        dict_constants = {}
-     #   for i in range(len(lst_param)):
-     #       if lst_param[i] != 0:
-     #           dict_constants[param_names[i]] = lst_param[i]
-     #   print(dict_constants)
-        if self.CHOOSE_FIT != "None":
-            return [
-                OnlineFit(self.CHOOSE_FIT,
-                          data={
-                              "x": self.dict_obj[self.SET_FIT_PARAM],
-                              "y": self.run.counts,
-                              "y_err": self.run.res_err,
-                          },
-                   #       constants= dict_constants
-                          )
-            ]
-        else:
-            return []
 
 ScanForTime = make_fragment_scan_exp(executeScan)
 
