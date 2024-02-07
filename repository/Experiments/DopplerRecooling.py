@@ -15,18 +15,18 @@ class runScan(Fragment):
         self.setattr_device("urukul0_ch0") # RF channel is very imp
         self.setattr_device("urukul0_ch1")
         self.RFamp=self.get_dataset('UrukulCh0_RFamp')
-        ttl_params = ["ttl0"]
-        self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0"))
+        ttl_params = ["ttl0_counter"]
+        self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0_counter"))
         self.setattr_device(str(self.INPUT_TTL)) #must typecast or NoneType error when recomputing args
         self.ttl = self.get_device(self.INPUT_TTL)
         self.setattr_device("ttl4") # triggering TimeHarp
 
-
+        self.sum_rising_edges=0.0
         self.setattr_result("counts")
    #    self.setattr_result("result2")
        # self.setattr_param("urukulchan2freq",FloatParam,"Urukul channel 2 freq", unit="MHz",default=1.0*MHz)
         self.setattr_result("res_err", display_hints={"error_bar_for": self.counts.path})
-        self.points = [[0.0] * self.get_dataset("scan1.repetitions"), [0.0] * self.get_dataset("scan1.repetitions")]
+        self.points = [[0.0] * self.get_dataset("Repetitions"), [0.0] * self.get_dataset("Repetitions")]
         self.gate_end_mu = np.int64(0) # necessary or type error when assigning new val
         self.mean_rising_edges = 0.0
         self.channel_num = [1] # Doppler, Det, OP
@@ -39,17 +39,17 @@ class runScan(Fragment):
 
         #self.core.reset()
         self.core.break_realtime()
-        #self.urukul0_cpld.init()
+        self.urukul0_cpld.init()
         self.urukul0_ch0.init() # leave RF as is
         self.urukul0_ch0.set_att(0*dB)
-        self.urukul0_ch0.set(amplitude=self.RFamp)
-        delay(1*us)
+        self.urukul0_ch0.set( frequency= 25.671*MHz, amplitude=self.RFamp)
+        #delay(1*us)
         self.urukul0_ch0.sw.on() # turns it on as in the last config
         self.urukul0_ch1.init()
         # self.ttl.input()
         self.ttl4.output()
 
-        sum_rising_edges = 0.0
+        self.sum_rising_edges = 0.0
 
         self.urukul0_ch1.set_att(0*dB)
 
@@ -59,6 +59,7 @@ class runScan(Fragment):
             delay(30 * us)  # This delay will exist between scan points
             # Doppler cool initially using Global freq and amplitude
             self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
+            #delay(30*us)
             self.urukul0_ch1.set_att(0 * dB)
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
             delay(coolingtime)
@@ -78,9 +79,9 @@ class runScan(Fragment):
             #Detection with Doppler using script specific freq and amplitude
 
             # for simple detection using edge counter
-            # self.ttl.gate_rising(detection_time)
+            self.ttl.gate_rising(detTime)
             # without edge counter
-            detcounts_time = self.ttl.gate_rising(detTime)
+            #detcounts_time = self.ttl.gate_rising(detTime)
 
             # with parallel:
             #     with sequential:# Q: How to access number of scan points?
@@ -101,7 +102,9 @@ class runScan(Fragment):
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
 
             #extra computations always left at the end of the scan, or else RTIO underflow occurs
-            sum_rising_edges = sum_rising_edges + self.ttl.count(detcounts_time)
+            x=self.ttl.fetch_count()
+            self.sum_rising_edges = self.sum_rising_edges + x
+            delay(1*ms)
 
             i=i+1
 
@@ -143,7 +146,7 @@ class runScan(Fragment):
 
         # options for thresholding and/or histogram
 
-        self.mean_rising_edges = (sum_rising_edges)/(num_repeat)
+        self.mean_rising_edges = (self.sum_rising_edges)/(num_repeat)
 
 
 
@@ -153,10 +156,10 @@ class executeScan(ExpFragment):
 
     def build_fragment(self):
        # self.setattr_param("channel", IntParam, "CHOOSE URUKUL CHANNEL (0-3)", default=0)
-        self.setattr_param("waittime", FloatParam, "Set Wait Time ",unit="ms", default= 10.000*ms, min = 0.00*ms) #changed min to 1 to avoid fit issue when 0
-        self.setattr_param("recooltime", FloatParam, "Set Recooling Time ", unit="ms", default=10.000 * ms, min=0.00 * ms)  # changed min to 1 to avoid fit issue when 0
-        self.setattr_param("recoolfreq", FloatParam, "Set Recooling Frequency ",unit="MHz", default= 0.000*MHz)
-        self.setattr_param("recoolamp", FloatParam, "Set Recooling Amplitude (FROM 0-0.8)", default=0.0, max = 0.800)
+        self.setattr_param("waittime", FloatParam, "Set Wait Time ",unit="ms", default= 1.000*ms, min = 0.00*ms) #changed min to 1 to avoid fit issue when 0
+        self.setattr_param("recooltime", FloatParam, "Set Recooling Time ", unit="ms", default=1.000 * ms, min=0.00 * ms)  # changed min to 1 to avoid fit issue when 0
+        self.setattr_param("recoolfreq", FloatParam, "Set Recooling Frequency ",unit="MHz", default= 195.000*MHz)
+        self.setattr_param("recoolamp", FloatParam, "Set Recooling Amplitude (FROM 0-0.8)", default=0.5, max = 0.800)
         self.setattr_fragment("run", runScan) #Assigns runScan fragment and its attributes/functions to this fragment
         #self.setattr_fragment("histplot",histPlot,len(self.run.points)) # creates histogram plot, maybe called too early
         fit_params = ["TIME", "FREQUENCY", "AMPLITUDE"]
@@ -216,7 +219,7 @@ class executeScan(ExpFragment):
          Save all global dataset parameters in a dictionary here.
         '''
 
-        parentdir = r"C:\Users\RiceT\Documents\Artiq-Rice" # system dependent
+        parentdir = r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice" # system dependent
         datasetdir = parentdir + "\dataset_db.pyon"
         self.globaldataset = {}
         f=open(datasetdir, 'r')
@@ -227,6 +230,7 @@ class executeScan(ExpFragment):
             ele3 = (ele2[0].split('    '))[-1]
             ele4=''.join(list(ele3)[1:-1])
             self.globaldataset[ele4]=self.get_dataset(ele4)
+
     def host_cleanup(self):
         self.save_global_dataset()
         #print(self.run.counts)
