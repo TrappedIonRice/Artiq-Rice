@@ -289,12 +289,12 @@ device_db["led1"] = {
 aliases = {
     "PMT_counts": "ttl0",
     "Camera_fire": "ttl7",
-    "Doppler": "urukul0_ch0",  # used to be cavity 1092 (for debugging ref)
+    "Doppler": "urukul0_ch0",
     "Detection": "urukul0_ch1",
     "OP": "urukul0_ch2",
     "MW": "urukul0_ch3",
-    # "935": "urukul1_ch0",
-    # "435": "urukul1_ch1",
+    "935": "urukul0_ch1",
+    "435": "urukul0_ch2",
     # "zotino": "zotino0"
 }
 device_db.update(aliases)
