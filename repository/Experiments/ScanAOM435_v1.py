@@ -16,15 +16,15 @@ class runScan(Fragment):
         self.setattr_device("urukul0_ch1")
         self.setattr_device("urukul0_ch2")
         self.setattr_device("urukul0_ch3")
+        self.setattr_device("zotino0")
 
         ttl_params = ["ttl0_counter"]
         self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0_counter"))
         self.setattr_device(str(self.INPUT_TTL)) #must typecast or NoneType error when recomputing args
+        self.ttl = self.get_device(self.INPUT_TTL)
 
         self.sum_rising_edges=0.0
         self.setattr_result("counts")
-   #    self.setattr_result("result2")
-       # self.setattr_param("urukulchan2freq",FloatParam,"Urukul channel 2 freq", unit="MHz",default=1.0*MHz)
         self.setattr_result("res_err", display_hints={"error_bar_for": self.counts.path})
         self.points = [[0.0] * self.get_dataset("Repetitions"), [0.0] * self.get_dataset("Repetitions")]
         self.gate_end_mu = np.int64(0) # necessary or type error when assigning new val
@@ -32,59 +32,98 @@ class runScan(Fragment):
         self.channel_num = [1] # Doppler, Det, OP
 
 
+
     @kernel
-    def ON(self, wait_time, coolingfreq,coolingamp, coolingtime, detFreq,detAmp, detTime, num_repeat):
+    def ON(self,Frequency435,Amplitude435,Time435,Attenuation_435, doppler_freq,doppler_amp,doppler_time,
+           det_freq,det_amp,det_time,freq_935,amp_935,
+           SBCFrequency435,SBCAmplitude435,SBCTime, SBCAmplitude935,
+           prepfreq435,preptime, wait_time, num_repeat):
 
         """Pulses urukul ch0, ch1, ch2, then counts num rising edges (cycles) from ttl0 for x us. Calculates mean
         rising edges for a given num_repeat to push to counts channel"""
 
         self.core.reset()
-       #self.core.break_realtime()
+        #self.core.break_realtime()
+
         self.urukul0_cpld.init()
-        self.urukul0_ch0.init() # leave RF as is
-        self.urukul0_ch0.set_att(0*dB)
-        self.urukul0_ch0.set( frequency= 25.671*MHz, amplitude=self.RFamp)
-        #delay(1*us)
-        self.urukul0_ch0.sw.on() # turns it on as in the last config
+        delay(10 * ms)
+        attenuation=3.0 # use as required
+
+        # self.urukul0_cpld.init() # for now this isn't doing anything
+        # self.urukul0_ch0.init()
+
+        # Doppler+935
         self.urukul0_ch1.init()
+        self.urukul0_ch1.set_att(0*dB)
+        self.urukul0_ch1.set( frequency= doppler_freq, amplitude=doppler_amp, phase_mode=2)
+        self.urukul0_ch1.sw.on()
         self.urukul0_ch2.init()
         self.urukul0_ch2.set_att(0 * dB)
+        self.urukul0_ch2.set(frequency=freq_935, amplitude=amp_935, phase_mode=2)
         self.urukul0_ch2.sw.on()
 
-        # self.ttl.input()
-        self.ttl4.output()
+        # 435
+        self.urukul0_ch0.init()
+        self.urukul0_ch0.set_att(Attenuation_435 * dB)
+        self.urukul0_ch0.sw.off()
+
+        # Detection
+        self.urukul0_ch3.init()
+        self.urukul0_ch3.set_att(3 * dB)
+        self.urukul0_ch3.set(frequency=det_freq, amplitude=det_amp, phase_mode=2)
+        self.urukul0_ch3.sw.off()
 
         self.sum_rising_edges = 0.0
 
-        self.urukul0_ch1.set_att(0*dB)
-
-        #exp loop without dma
+        # exp loop without dma
         i=0
         while(i<num_repeat):
-            delay(30 * us)  # This delay will exist between scan points
-            # Doppler cool initially using Global freq and amplitude
-            self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
-            #delay(30*us)
-            self.urukul0_ch1.set_att(0 * dB)
+            delay(30 * us)  # This delay will exist between repetitions
+
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
-            delay(coolingtime)
+            self.urukul0_ch2.sw.on()
+            delay(doppler_time)
             self.urukul0_ch1.sw.off()
-            #wait
+            self.urukul0_ch2.sw.off()
+
+            #435 SBC
+            self.urukul0_ch0.set(frequency=SBCFrequency435, amplitude=SBCAmplitude435, phase_mode=2)
+            self.urukul0_ch2.set(amplitude=SBCAmplitude935, phase_mode=2)
+            self.urukul0_ch0.sw.on()
+            self.urukul0_ch2.sw.on()
+            delay(SBCTime)
+            self.urukul0_ch0.sw.off()
+            self.urukul0_ch2.sw.off()
+
+          #  delay(50 * us)
+            # 435 state prep
+
+            self.urukul0_ch0.set(frequency=prepfreq435, amplitude=0.8, phase_mode=2)
+            self.urukul0_ch2.set(amplitude=0.8, phase_mode=2)
+            self.urukul0_ch0.sw.on()
+            self.urukul0_ch2.sw.on()
+            delay(preptime)
+            self.urukul0_ch0.sw.off()
+            self.urukul0_ch2.sw.off()
+
+           # delay(50 * us)
+            # 435 interaction
+            self.urukul0_ch0.set(frequency=Frequency435, amplitude=Amplitude435, phase_mode=2)
+            self.urukul0_ch0.sw.on()
+            delay(Time435)
+            self.urukul0_ch0.sw.off()
+
+           # delay(50 * us)
+            # delay
+
             delay(wait_time)
 
-            # Reset Detection DC freq, amp
-            self.urukul0_ch1.set(frequency=detFreq, amplitude=detAmp)
-            self.urukul0_ch1.set_att(0 * dB)
-
-            # rising trigger to timeharp
-            self.ttl4.on()
-            #Detection DC on
-            delay(-100*ns) # to sync TTL4 and Doppler DDS
-            self.urukul0_ch1.sw.on()
-            #Detection with Doppler using script specific freq and amplitude
-
+            # detection
+            self.urukul0_ch3.sw.on()
+            #self.urukul0_ch2.sw.on() #935 on
             # for simple detection using edge counter
-            self.ttl.gate_rising(detTime)
+            self.ttl.gate_rising(det_time)
+
             # without edge counter
             #detcounts_time = self.ttl.gate_rising(detTime)
 
@@ -96,20 +135,26 @@ class runScan(Fragment):
             #             self.ttl4.pulse(detTime*i/(maxttl2*2.0))
             #             delay(detTime/(maxttl2*2.0))
 
-            # Detection DC off
-            self.urukul0_ch1.sw.off()
-            # falling trigger to timeharp
-            self.ttl4.off()
-            delay(-2*us) # to match TTL4 falling edge and Doppler on edges
-            #continue Doppler
-            self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
-            #delay(5 * us)
-            self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
+            # Detection off
+            #delay(-100*us)
+            self.urukul0_ch3.sw.off()
+            #self.urukul0_ch2.sw.off() #935 on
 
-            #extra computations always left at the end of the scan, or else RTIO underflow occurs
+           # delay(50 * us)
+
+            # continue Doppler+935
+            self.urukul0_ch1.sw.on()
+            self.urukul0_ch2.set(frequency=freq_935, amplitude=amp_935, phase_mode=2)
+            self.urukul0_ch2.sw.on()
+
+            # delay(5 * us)
+            # self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
+
+            # extra computations always left at the end of the scan, or else RTIO underflow occurs
             x=self.ttl.fetch_count()
             self.sum_rising_edges = self.sum_rising_edges + x
             delay(1*ms)
+
 
             i=i+1
 
@@ -161,12 +206,31 @@ class executeScan(ExpFragment):
 
     def build_fragment(self):
        # self.setattr_param("channel", IntParam, "CHOOSE URUKUL CHANNEL (0-3)", default=0)
-        self.setattr_param("Frequency", FloatParam, "Set Frequency ",unit="MHz", default= 250.000*MHz, min = 230.00*MHz, max=270*MHz) #changed min to 1 to avoid fit issue when 0
-        self.setattr_param("Amplitude", FloatParam, "Set Amplitude ", unit="", default=0.000 , min=0.00, max=0.8)  # changed min to 1 to avoid fit issue when 0
-        self.setattr_param("Time", FloatParam, "Set Time ",unit="ms", default= 1.00*ms)
+
+        self.setattr_param("SBCcheck", BoolParam, "SBC 435: ", default=False)
+        self.setattr_param("SBCFrequency435", FloatParam, "Set SBC Frequency 435", unit="MHz", default=250.000 * MHz)
+        self.setattr_param("SBCAmplitude435", FloatParam, "Set SBC Amplitude 435 ", unit="", default=0.00, min=0.00, max=0.8)
+        self.setattr_param("SBCTime", FloatParam, "Set SBC Time ", unit="ms", default=1.00 * ms)
+        self.setattr_param("SBCAmplitude935", FloatParam, "Set SBC Amplitude 935 ", unit="", default=0.0500, min=0.00, max=0.8)
+
+        self.setattr_param("StatePrep", BoolParam, "State Preparation: ", default=False)
+        self.setattr_param("prepfreq435", FloatParam, "Set Prep 435 frequency", unit="MHz", default=244.335 * MHz)
+        self.setattr_param("preptime", FloatParam, "Set Prep time", unit="ms", default=2 * ms)
+
+        self.setattr_param("Frequency435", FloatParam, "Set Frequency ",unit="MHz", default= 250.000*MHz) #changed min to 1 to avoid fit issue when 0
+        self.setattr_param("Amplitude435", FloatParam, "Set Amplitude ", unit="", default=0.000 , min=0.00, max=0.8)  # changed min to 1 to avoid fit issue when 0
+        self.setattr_param("Time435", FloatParam, "Set Time ",unit="ms", default= 1.00*ms)
+        self.setattr_param("WaitTime", FloatParam, "Set Wait Time ", unit="ms", default=1.00 * ms)
+        self.setattr_param("DetTime369", FloatParam, "Set Detection Time ", unit="ms", default=1.00 * ms)
+
+        self.setattr_param("endcapX", FloatParam, "Set EndcapX ", unit="", default=0.0 )
+        self.setattr_param("allY", FloatParam, "Set AllY ", unit="", default=0.0 )
+        self.setattr_param("allZ", FloatParam, "Set AllZ ", unit="", default=0.0 )
+
         self.setattr_fragment("run", runScan) #Assigns runScan fragment and its attributes/functions to this fragment
 
-        #self.setattr_fragment("histplot",histPlot,len(self.run.points)) # creates histogram plot, maybe called too early
+
+    #self.setattr_fragment("histplot",histPlot,len(self.run.points)) # creates histogram plot, maybe called too early
         #fit_params = ["TIME", "FREQUENCY", "AMPLITUDE"]
         # self.setattr_argument("histogram",BooleanValue(default=False) ,tooltip="Save histogram data also")
         # self.setattr_argument("threshold_enable", BooleanValue(default=False),group="THRESHOLD", tooltip="Single ion threshhold")
@@ -186,29 +250,50 @@ class executeScan(ExpFragment):
         #self.setattr_result("test")
 
     def host_setup(self):           #reserved key word
-        self.cooling_freq = self.get_dataset("Doppler.Frequency")
-        self.cooling_amp = self.get_dataset("Doppler.Amp")
+        self.doppler_freq = self.get_dataset("Doppler.Frequency")
+        self.doppler_amp = self.get_dataset("Doppler.Amp")
         self.num_repeat = self.get_dataset("Repetitions")
-        self.cooling_time = self.get_dataset("Doppler.Time(ms)") * ms
-
-        self.cooling_freq = self.get_dataset("Doppler.Frequency")
-        self.cooling_amp = self.get_dataset("Doppler.Amp")
-        self.num_repeat = self.get_dataset("Repetitions")
-        self.cooling_time = self.get_dataset("Doppler.Time(ms)") * ms
+        self.doppler_time = self.get_dataset("Doppler.Time(ms)") * ms
 
 
+        self.det_freq = self.get_dataset("Detection.Frequency")
+        self.det_amp = self.get_dataset("Detection.Amp")
+        self.det_time = self.get_dataset("Detection.Time(ms)") * ms
+
+        self.freq_935 = self.get_dataset("935.Frequency")
+        self.amp_935 = self.get_dataset("935.Amp")
+
+        self.attenuation_435=self.get_dataset("435.Attenuation")
+
+        self.modSBCtime=0.0
+        self.modpreptime = 0.0
 
 
-    @kernel
+
+       # print(self.Time435.get())
+       # print(self.DetTime369.get())
+
+        #self.cooling_time = self.get_dataset("935.Time(ms)") * ms
+
+    @kernel # on kernel is faster
     def run_once(self):
 
         """Retrieves constant values from dataset, then runs experiment"""
 
-        # detFreq = self.recoolfreq.get()
-        # detAmp = self.recoolamp.get()
-        # detTime=self.recooltime.get()
-        # waitTime=self.waittime.get()
-        self.run.ON(self.waittime.get(), self.cooling_freq,self.cooling_amp,self.cooling_time, self.recoolfreq.get(), self.recoolamp.get(), self.recooltime.get(), self.num_repeat) #calls ON function in runScan fragment
+        if (self.SBCcheck.get()==True):
+            self.modSBCtime=self.SBCTime.get()
+
+        if (self.StatePrep.get()==True):
+            self.modpreptime=self.preptime.get()
+
+        self.run.ON(self.Frequency435.get(),self.Amplitude435.get(),self.Time435.get(),self.attenuation_435,\
+                    self.doppler_freq,self.doppler_amp,self.doppler_time,\
+                    self.det_freq,self.det_amp,self.DetTime369.get(),\
+                    self.freq_935,self.amp_935 ,\
+                    self.SBCFrequency435.get(),self.SBCAmplitude435.get(),self.modSBCtime, self.SBCAmplitude935.get(),\
+                    self.prepfreq435.get(),self.modpreptime, \
+                    self.WaitTime.get(),\
+                    self.num_repeat) #calls ON function in runScan fragment
 
         # self.run.counts.push(np.log(self.run.mean_rising_edges))
         self.host_push_results(self.run.mean_rising_edges, self.run.points)
@@ -220,9 +305,13 @@ class executeScan(ExpFragment):
     @rpc(flags={"async"})
     def host_push_results(self, mean_rising_edges, points):
 
-        self.run.counts.push(mean_rising_edges)
-        self.run.res_err.push(mean_rising_edges/ sqrt(self.num_repeat))
-        print('Mean:'+str(10**-3*mean_rising_edges/self.recooltime.get())+'\n'+'Stddev:'+str(10**-3*mean_rising_edges/ sqrt(self.num_repeat)/self.recooltime.get()))
+        # self.run.counts.push(mean_rising_edges/self.det_time)
+        # self.run.res_err.push(mean_rising_edges/(self.det_time*sqrt(self.num_repeat)))
+        T=self.DetTime369.get()
+        self.run.counts.push(mean_rising_edges /1)
+        self.run.res_err.push(mean_rising_edges/(1*sqrt(self.num_repeat)))
+
+       # print('Mean:'+str(mean_rising_edges)+'\n'+'Stddev:'+str(mean_rising_edges/ sqrt(self.num_repeat)))
 
         #print("{0:.7f}".format(mean_rising_edges/ sqrt(self.num_repeat)))
         # print(oitg.fitting.exponential_decay.fit(self.time, self.run.counts, self.run.res_err, evaluate_function=True,
@@ -250,27 +339,27 @@ class executeScan(ExpFragment):
         #print(self.run.counts)
 
 
-    def get_default_analyses(self):
-     #   lst_param = [self.x0, self.y0, self.y_inf, self.tau]
-     #   param_names = ['x0', 'y0', 'y_inf', 'tau']
-        dict_constants = {}
-     #   for i in range(len(lst_param)):
-     #       if lst_param[i] != 0:
-     #           dict_constants[param_names[i]] = lst_param[i]
-     #   print(dict_constants)
-        if self.CHOOSE_FIT != "None":
-            return [
-                OnlineFit(self.CHOOSE_FIT,
-                          data={
-                              "x": self.dict_obj[self.SET_FIT_PARAM],
-                              "y": self.run.counts,
-                              "y_err": self.run.res_err,
-                          },
-                   #       constants= dict_constants
-                          )
-            ]
-        else:
-            return []
+    # def get_default_analyses(self):
+    #  #   lst_param = [self.x0, self.y0, self.y_inf, self.tau]
+    #  #   param_names = ['x0', 'y0', 'y_inf', 'tau']
+    #     dict_constants = {}
+    #  #   for i in range(len(lst_param)):
+    #  #       if lst_param[i] != 0:
+    #  #           dict_constants[param_names[i]] = lst_param[i]
+    #  #   print(dict_constants)
+    #     if self.CHOOSE_FIT != "None":
+    #         return [
+    #             OnlineFit(self.CHOOSE_FIT,
+    #                       data={
+    #                           "x": self.dict_obj[self.SET_FIT_PARAM],
+    #                           "y": self.run.counts,
+    #                           "y_err": self.run.res_err,
+    #                       },
+    #                #       constants= dict_constants
+    #                       )
+    #         ]
+    #     else:
+    #         return []
 
 ScanForTime = make_fragment_scan_exp(executeScan)
 

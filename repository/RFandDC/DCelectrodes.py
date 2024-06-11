@@ -245,6 +245,7 @@ class DC_Control(EnvExperiment):
         delay(10 * ms)
         # updating zotino with all voltage combinations on electrodes.
         for i in range(12):
+
             self.zotino0.write_dac(self.DCElectrodeMapping[i],
                                    self.DCElectrodeValues[self.DCElectrodeMapping[i]])
             self.zotino0.load()

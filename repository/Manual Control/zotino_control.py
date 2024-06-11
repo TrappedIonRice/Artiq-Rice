@@ -20,12 +20,20 @@ class SetZotino(EnvExperiment):
     @kernel
     def krun(self):
         self.initialize()
+
+
+        #self.zotino0.calibrate(self.channel,-9.999,9.999)
+        # self.zotino0.write_offset(self.channel,-0.0095)
+        # self.zotino0.load()
+        delay(200 * us)
         self.zotino0.write_dac(self.channel,self.value)
         self.zotino0.load()
+
 
         delay(100*us)
         if self.reset:
             for i in range(32):
+
                 self.zotino0.write_dac(i,self.reset_value)
                 self.zotino0.load()
                 delay(100*us)

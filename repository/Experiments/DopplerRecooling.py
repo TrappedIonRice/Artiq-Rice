@@ -14,6 +14,8 @@ class runScan(Fragment):
         self.setattr_device("urukul0_cpld")  # Necessary for clock sync
         self.setattr_device("urukul0_ch0") # RF channel is very imp
         self.setattr_device("urukul0_ch1")
+        self.setattr_device("urukul0_ch2")
+        self.setattr_device("urukul0_ch3")
         self.RFamp=self.get_dataset('UrukulCh0_RFamp')
         ttl_params = ["ttl0_counter"]
         self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0_counter"))
@@ -31,21 +33,28 @@ class runScan(Fragment):
         self.mean_rising_edges = 0.0
         self.channel_num = [1] # Doppler, Det, OP
 
+
     @kernel
     def ON(self, wait_time, coolingfreq,coolingamp, coolingtime, detFreq,detAmp, detTime, num_repeat):
 
         """Pulses urukul ch0, ch1, ch2, then counts num rising edges (cycles) from ttl0 for x us. Calculates mean
         rising edges for a given num_repeat to push to counts channel"""
 
-        #self.core.reset()
-        self.core.break_realtime()
+        self.core.reset()
+       #self.core.break_realtime()
         self.urukul0_cpld.init()
         self.urukul0_ch0.init() # leave RF as is
-        self.urukul0_ch0.set_att(0*dB)
-        self.urukul0_ch0.set( frequency= 25.671*MHz, amplitude=self.RFamp)
+        # self.urukul0_ch0.set_att(0*dB)
+        # self.urukul0_ch0.set( frequency= 25.671*MHz, amplitude=self.RFamp)
         #delay(1*us)
-        self.urukul0_ch0.sw.on() # turns it on as in the last config
+        # self.urukul0_ch0.sw.on() # turns it on as in the last config
         self.urukul0_ch1.init()
+        self.urukul0_ch2.init()
+        self.urukul0_ch2.set_att(0 * dB)
+        self.urukul0_ch2.sw.on()
+        self.urukul0_ch3.init()
+        self.urukul0_ch3.set_att(0 * dB)
+
         # self.ttl.input()
         self.ttl4.output()
 
@@ -68,14 +77,14 @@ class runScan(Fragment):
             delay(wait_time)
 
             # Reset Detection DC freq, amp
-            self.urukul0_ch1.set(frequency=detFreq, amplitude=detAmp)
-            self.urukul0_ch1.set_att(0 * dB)
+            self.urukul0_ch3.set(frequency=detFreq, amplitude=detAmp)
+            self.urukul0_ch3.set_att(0 * dB)
 
             # rising trigger to timeharp
             self.ttl4.on()
             #Detection DC on
             delay(-100*ns) # to sync TTL4 and Doppler DDS
-            self.urukul0_ch1.sw.on()
+            self.urukul0_ch3.sw.on()
             #Detection with Doppler using script specific freq and amplitude
 
             # for simple detection using edge counter
@@ -92,7 +101,7 @@ class runScan(Fragment):
             #             delay(detTime/(maxttl2*2.0))
 
             # Detection DC off
-            self.urukul0_ch1.sw.off()
+            self.urukul0_ch3.sw.off()
             # falling trigger to timeharp
             self.ttl4.off()
             delay(-2*us) # to match TTL4 falling edge and Doppler on edges
@@ -196,7 +205,8 @@ class executeScan(ExpFragment):
         # detAmp = self.recoolamp.get()
         # detTime=self.recooltime.get()
         # waitTime=self.waittime.get()
-        self.run.ON(self.waittime.get(), self.cooling_freq,self.cooling_amp,self.cooling_time, self.recoolfreq.get(), self.recoolamp.get(), self.recooltime.get(), self.num_repeat) #calls ON function in runScan fragment
+        self.run.ON(self.waittime.get(), self.cooling_freq,self.cooling_amp,self.cooling_time,\
+                    self.recoolfreq.get(), self.recoolamp.get(), self.recooltime.get(), self.num_repeat) #calls ON function in runScan fragment
 
         # self.run.counts.push(np.log(self.run.mean_rising_edges))
         self.host_push_results(self.run.mean_rising_edges, self.run.points)
@@ -210,6 +220,8 @@ class executeScan(ExpFragment):
 
         self.run.counts.push(mean_rising_edges)
         self.run.res_err.push(mean_rising_edges/ sqrt(self.num_repeat))
+        print('Mean:'+str(10**-3*mean_rising_edges/self.recooltime.get())+'\n'+'Stddev:'+str(10**-3*mean_rising_edges/ sqrt(self.num_repeat)/self.recooltime.get()))
+
         #print("{0:.7f}".format(mean_rising_edges/ sqrt(self.num_repeat)))
         # print(oitg.fitting.exponential_decay.fit(self.time, self.run.counts, self.run.res_err, evaluate_function=True,
         #                                          evaluate_n=100))

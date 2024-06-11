@@ -10,7 +10,7 @@ import scipy.optimize
 import pylab as plt
 import pickle
 import json
-from mpl_interactions import ioff, panhandler, zoom_factory
+#from mpl_interactions import ioff, panhandler, zoom_factory
 import oitg
 import matplotlib.ticker as mticker
 
@@ -27,7 +27,7 @@ fits = {"exponential_decay":exponential_decay,
         "parabola":parabola,
         "None": ''}
 
-rids="6707 6708 6709"#input("Enter list of rid's:")
+rids=input("Enter list of rid's:")
 CHOOSE_FIT=input("Enter fit type:\n "+str(fits.keys())+"\n")
 
 lst_rids = list(map(int,rids.split()))
@@ -49,7 +49,7 @@ colorlist=plt.cm.viridis(np.linspace(0.0,1.0,len(lst_rids)))
 
 for ii, rid in enumerate(lst_rids):
     dict_test = find_results("", rid=int(rid),
-                             root_path="C:/Artiq/artiq_new_installation/results")  # returns dict of results, used to find file path
+                             root_path="C:/Users/TrappedIonRice4/Documents/Artiq-Rice/results")  # returns dict of results, used to find file path
     dict_hdf5 = load_hdf5_file(dict_test[int(rid)][0])  # returns file as dict
     dict_datasets = dict_hdf5["datasets"]  # dict key where all points are stored in a nested dict
 
@@ -69,8 +69,10 @@ for ii, rid in enumerate(lst_rids):
     #     x_vals_1[i]=x_vals_1[i]*10**6
     y_vals_1 = list(dict_datasets[key_name_y])
     err_vals_1 = list(dict_datasets[key_name_err])
+    # x_vals_1 = np.array(x_vals_1) * 1e-3
     plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, fmt="o")
     plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="{0:d}".format(rid))
+    # plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="Data")
 
 
     if not (CHOOSE_FIT=="None"):
@@ -109,18 +111,21 @@ for ii, rid in enumerate(lst_rids):
                 #y_fit = exp_decay(x_fit, a_opt, b_opt, c_opt)
 
                 print(popt)
-                plt.plot(x_fit, y_fit , label='fit:'+str(popt), color=colorlist[ii])
+                plt.plot(x_fit, y_fit , label='Fit: ' + str(popt), color=colorlist[ii])
+                # plt.plot(x_fit, y_fit, label='Fit', color=colorlist[ii])
                 plt.xlabel(xlabel_axis0)
-                plt.ylabel('counts')
+                plt.ylabel('Counts')
 
-disconnect_zoom = zoom_factory(axis)
-pan_handler = panhandler(figure)
+#disconnect_zoom = zoom_factory(axis)
+#pan_handler = panhandler(figure)
 #plt.xlabel('Time (μs)')  # Indicate that the x axis is in microseconds
 # plt.xlabel(xlabel_axis0)
 # plt.ylabel('counts')
 plt.ticklabel_format(style='sci', axis='x', scilimits=(-6, -6))
 plt.legend()
 plt.grid(visible=True)
+data = np.array([[x_vals_1, y_vals_1, err_vals_1], [x_fit, y_fit]])
+np.save(r'Z:\Lab Rice\Experimental Projects\Monolithic Trap\435 measurements\Spectroscopy\radial_rsb_flopping_separatedataset', data)
 plt.show()
 
 

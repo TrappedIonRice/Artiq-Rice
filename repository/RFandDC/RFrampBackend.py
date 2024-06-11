@@ -3,12 +3,12 @@ import time
 import sys
 
 if __name__=="__main__":
-    serialobj=serial.Serial('COM3',9600)
+    serialobj=serial.Serial('COM20',9600) # Arduino COM port
     time.sleep(3) # strictly necessary
-    serialobj2=serial.Serial('COM4',9600) # REad from COM2, with data written to COM1 from RFramp.py
-    filename=r"C:\Artiq\artiq_new_installation\dataset_db.pyon"
+    serialobj2=serial.Serial('COM3',9600) # Read from COM2, with data written to COM1 from RFramp.py
+    filename=r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice\dataset_db.pyon"
     RFkeyword="RFamp_Arduino"
-    V=0.0
+    V=0.1
     while(True):
         try:
 

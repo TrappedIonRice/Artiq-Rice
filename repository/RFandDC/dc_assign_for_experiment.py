@@ -4,7 +4,7 @@ import numpy as np
 from collections import OrderedDict
 from copy import copy
 
-class Loading(EnvExperiment):
+class ExpConfig(EnvExperiment):
 
     def build(self):
         # Devices
@@ -42,16 +42,22 @@ class Loading(EnvExperiment):
         # self.doppler_freq = self.get_dataset("Loading.doppler_frequency")
         # self.doppler_amp = self.get_dataset("Loading.doppler_amplitude")
 
-        self.endcap_avg = self.get_dataset("Loading.endcap_avg")
-        self.all_y = self.get_dataset("Loading.all_y")
-        self.all_z = self.get_dataset("Loading.all_z")
-        self.twist = self.get_dataset("Loading.twist")
+        self.endcap_avg = self.get_dataset("Experiment_config.endcap_avg")
+        self.centercap_avg=self.get_dataset("Experiment_config.centercap_avg")
+        self.midcap_avg=self.get_dataset("Experiment_config.midcap_avg")
+        self.endcapX=self.get_dataset("Experiment_config.endcapX")
+        self.all_y = self.get_dataset("Experiment_config.all_y")
+        self.all_z = self.get_dataset("Experiment_config.all_z")
+        self.twist = self.get_dataset("Experiment_config.Twist")
 
     def run(self):
         self.set_dataset("DC.EndcapAvg", self.endcap_avg, broadcast=True, archive=True, persist=True)
+        self.set_dataset("DC.CenterAvg", self.centercap_avg, broadcast=True, archive=True, persist=True)
+        self.set_dataset("DC.MidcapAvg", self.midcap_avg, broadcast=True, archive=True, persist=True)
+        self.set_dataset("DC.EndcapX", self.endcapX, broadcast=True, archive=True, persist=True)
         self.set_dataset("DC.AllY", self.all_y, broadcast=True, archive=True, persist=True)
         self.set_dataset("DC.AllZ", self.all_z, broadcast=True, archive=True, persist=True)
-        self.set_dataset("DC.twist", self.twist, broadcast=True, archive=True, persist=True)
+        self.set_dataset("DC.Twist", self.twist, broadcast=True, archive=True, persist=True)
 
 
         # # DC bias electrode values

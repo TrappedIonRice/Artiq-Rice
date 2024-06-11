@@ -3,24 +3,24 @@ import time
 import sipyco.pc_rpc as RPC
 from artiq.experiment import *
 
-class LoadingSchedule(EnvExperiment):
-        ''' Loading Schedule'''
+class ExperimentSchedule(EnvExperiment):
+        ''' Experiment Schedule'''
         def build(self):
                 self.setattr_device("core")
                 self.setattr_device("scheduler")
 
-                self.target_amp = self.get_dataset("Loading.RFramp_targetamp")
-                self.ramp_rate = self.get_dataset("Loading.RFramp_ramprate")
-                self.time_step = self.get_dataset("Loading.RFramp_timestep")
-                self.num_points = self.get_dataset("Loading.RFramp_numpoints")
+                self.target_amp = self.get_dataset("Experiment_config.RFramp_targetamp")
+                self.ramp_rate = self.get_dataset("Experiment_config.RFramp_ramprate")
+                self.time_step = self.get_dataset("Experiment_config.RFramp_timestep")
+                self.num_points = self.get_dataset("Experiment_config.RFramp_numpoints")
 
                # self.target_min_amp = self.get_dataset("Loading.target_min_amplitude")
 
         def run(self):
 
                 expid_1 = {
-                        "file": "RFandDC/dc_assign_for_loading.py",
-                        "class_name": "Loading",
+                        "file": "RFandDC/dc_assign_for_experiment.py",
+                        "class_name": "ExpConfig",
                         "arguments": {},
                         "log_level": 0,
                         "repo_rev": self.scheduler.expid["repo_rev"],
@@ -57,9 +57,10 @@ class LoadingSchedule(EnvExperiment):
                 }
                 '''
 
+
                 print(self.scheduler.expid)
 
+                self.scheduler.submit("main", expid_3)
                 self.scheduler.submit("main", expid_1)
                 self.scheduler.submit("main", expid_2)
-                self.scheduler.submit("main", expid_3)
                 #self.scheduler.submit("main", expid_4)

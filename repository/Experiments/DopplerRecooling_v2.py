@@ -16,6 +16,8 @@ class runScan(Fragment):
         self.setattr_device("urukul0_cpld")  # Necessary for clock sync
         self.setattr_device("urukul0_ch0") # RF channel is very imp
         self.setattr_device("urukul0_ch1")
+        self.setattr_device("urukul0_ch2")
+
         ttl_params = ["ttl0_counter"]
         self.RFamp=self.get_dataset("UrukulCh0_RFamp")
 
@@ -34,8 +36,11 @@ class runScan(Fragment):
         self.gate_end_mu = np.int64(0) # necessary or type error when assigning new val
         self.mean_rising_edges = 0.0
         self.channel_num = [1]
-        self.bins = self.get_dataset("TimeBins")
-        self.counts_arr = np.zeros(self.bins)
+        self.bins = self.get_dataset("NBins")
+        self.bintime = self.get_dataset("BinWidth")
+        self.counts_arr = np.zeros(self.bins, dtype= 'int32')
+        self.counts_arr_temp = np.zeros(self.bins, dtype= 'int32')
+
 
 
 
@@ -54,15 +59,19 @@ class runScan(Fragment):
         self.urukul0_ch0.set_att(0 * dB)
         self.urukul0_ch0.sw.on() # turns it on as in the last config
         self.urukul0_ch1.init()
+        self.urukul0_ch2.init()
+        self.urukul0_ch2.set_att(0 * dB)
+        self.urukul0_ch2.sw.on()
+
         # self.ttl.input()
         self.ttl4.output()
-
+        #self.bintime=detTime/self.bins
         #sum_rising_edges = 0.0
-        bin_time=(detTime/self.bins)
         delay(5*us)
+        #bintime=detTime/self.bins
 
-        for j in range(self.bins):
-            self.counts_arr[j]=0.5
+        # for j in range(self.bins):
+        #     self.counts_arr[j]=0.0
 
         #exp loop without dma
         i=0
@@ -72,8 +81,12 @@ class runScan(Fragment):
             self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
             self.urukul0_ch1.set_att(0 * dB)
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
+            # self.ttl.gate_rising(coolingtime)
             delay(coolingtime)
             self.urukul0_ch1.sw.off()
+            # delay(1*ms)
+            # sum_rising_edges=sum_rising_edges+self.ttl.fetch_count()
+            # delay(1* ms)
             #wait
             delay(wait_time)
 
@@ -82,26 +95,35 @@ class runScan(Fragment):
             self.urukul0_ch1.set_att(0 * dB)
 
             # rising trigger to timeharp
-            self.ttl4.on()
+            self.ttl4.on() # temporarily commenting
             #Detection DC on
             delay(-100*ns) # to sync TTL4 and Doppler DDS
             self.urukul0_ch1.sw.on()
             #Detection with Doppler using script specific freq and amplitude
-
             # for simple detection using edge counter
-            for k in range(self.bins):
+
+            for k in range(0,self.bins,1):
+            #    self.counts_arr[k]=k
                 #detcounts_time=self.ttl.gate_rising(bin_time)
-                self.ttl.gate_rising(bin_time)
-                delay(bin_time)
-                self.counts_arr[k] = self.counts_arr[k] + self.ttl.fetch_count() # To add up count rate
+                #self.ttl4.on()
+                self.ttl.gate_rising(self.bintime)
+                delay(detTime/self.bins)        # have to correspond this t
+                #delay(-1*self.bintime)
+                delay(50*us)
+                self.counts_arr_temp[k]=self.ttl.fetch_count()
+                delay(-50 * us)
+                delay(-1*self.bintime)
+                #self.ttl4.off()
+                #self.counts_arr[k] = self.counts_arr[k] + self.ttl.fetch_count() # To add up count rate
             # without edge counter
 
             # Detection DC off
-            delay(2*us)
+
+            delay(50*us)
             self.urukul0_ch1.sw.off()
             # falling trigger to timeharp
             delay(2 * us)
-            self.ttl4.off()
+            self.ttl4.off() # temporarily commenting
             delay(500*us) # to match TTL4 falling edge and Doppler on edges
             #continue Doppler
             self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
@@ -114,6 +136,9 @@ class runScan(Fragment):
             self.urukul0_ch0.set(frequency=25.671 * MHz, amplitude=self.RFamp)
             self.urukul0_ch0.set_att(0 * dB)
             self.urukul0_ch0.sw.on()
+
+            for k in range(0, self.bins, 1):
+                self.counts_arr[k] = self.counts_arr[k] + self.counts_arr_temp[k]
 
             i=i+1
 
@@ -155,7 +180,7 @@ class runScan(Fragment):
 
         # options for thresholding and/or histogram
 
-        #self.mean_rising_edges = (sum_rising_edges)/(num_repeat)
+       # self.mean_rising_edges = (sum_rising_edges)/(num_repeat)
 
 
 class executeScan(ExpFragment):
@@ -200,10 +225,10 @@ class executeScan(ExpFragment):
 
     @rpc(flags={"async"})
     def host_push_results(self, mean_rising_edges, points):
-        pass
-        #print(self.run.counts_arr)
-        # self.run.counts.push(mean_rising_edges)
-        # self.run.res_err.push(mean_rising_edges/ sqrt(self.num_repeat))
+
+        #print(self.run.mean_rising_edges)
+        self.run.counts.push(mean_rising_edges)
+        self.run.res_err.push(mean_rising_edges/ sqrt(points))
         #print("{0:.7f}".format(mean_rising_edges/ sqrt(self.num_repeat)))
         # print(oitg.fitting.exponential_decay.fit(self.time, self.run.counts, self.run.res_err, evaluate_function=True,
         #                                          evaluate_n=100))
@@ -229,7 +254,9 @@ class executeScan(ExpFragment):
         print(self.run.counts_arr)
 
         plt.figure(1)
-        plt.plot(np.arange(self.run.bins)*self.recooltime.get()*10**3/self.run.bins,self.run.counts_arr/self.num_repeat,'-*')
+        modcountsarr=self.run.counts_arr/(self.run.bintime*self.num_repeat)
+        bin_arr=np.arange(self.run.bins)*self.recooltime.get()*10**3/self.run.bins
+        plt.plot(bin_arr,modcountsarr,'-*')
         plt.grid(visible=True)
         plt.ylabel('Counts')
         plt.xlabel('Recooling Time (ms)')
@@ -237,8 +264,8 @@ class executeScan(ExpFragment):
         plt.show()
         self.save_global_dataset()
 
-        dataarr=np.vstack((np.arange(self.run.bins)*self.recooltime.get()*10**3/self.run.bins,self.run.counts_arr))
-        dir=r'Z:\Lab Rice\Projects in Progress\AM\Artiq\sampl_results\recooling_samples'
+        dataarr=np.vstack((bin_arr,modcountsarr))
+        dir=r'Z:\Lab Rice\Experimental Projects\Monolithic Trap\Heating Rate\Recooling data\2024-3-27\artiq_pmt'
         filename=r'\recooling_'+datetime.datetime.now().strftime("%b_%d_%Y_%H_%M_%S")+'.csv'
         np.savetxt(dir+filename,dataarr, delimiter=',')
         print('Saved data to :'+dir+filename)

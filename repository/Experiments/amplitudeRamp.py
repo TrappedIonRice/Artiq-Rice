@@ -26,8 +26,8 @@ class AmplitudeRamp(EnvExperiment):
         self.lowerlim=0.0001
         self.upperlim = 0.14
         self.dataReprate= 100
-        self.setattr_argument("frequency", NumberValue(default=25.671*MHz, min = 25 * MHz, max = 27 * MHz, unit="MHz", ndecimals=6), tooltip="Urukul0Ch0")
-        self.setattr_argument("ramp_rate", NumberValue(default=2e-05, ndecimals=6), tooltip="Urukul0Ch0")
+        self.setattr_argument("frequency", NumberValue(default=25.701*MHz, min = 25 * MHz, max = 27 * MHz, unit="MHz", ndecimals=6), tooltip="Urukul0Ch0")
+        self.setattr_argument("ramp_rate", NumberValue(default=2e-5, ndecimals=6), tooltip="Urukul0Ch0")
         self.setattr_argument("target_amplitude", NumberValue(default=0, min=self.lowerlim, max=self.upperlim, ndecimals=6), tooltip="Urukul0Ch0")
         self.setattr_argument("attenuation", NumberValue(default=0, unit="dB", min=0, max=10), tooltip="Urukul0Ch0")
         self.setattr_argument("time_step", NumberValue(default=10 * ms, unit="ms", min=0*ms,ndecimals=6))
@@ -50,10 +50,6 @@ class AmplitudeRamp(EnvExperiment):
         self.int_points = int(self.num_points)
         command = "${artiq_applet}plot_xy Amplitude --x Time --fit Amplitude"
         self.ccb.issue("create_applet", "Amplitude Ramp", command)
-
-
-
-
 
 
     @kernel
@@ -117,6 +113,8 @@ class AmplitudeRamp(EnvExperiment):
         # self.urukul0_cpld.init()
         self.urukul0_ch0.cpld.init()
         self.urukul0_ch0.init()
+        #self.zotino0.init()
+        delay(1*ms)
         #delay(10 * ms)
         #self.initialize_urukul()
 
@@ -124,18 +122,30 @@ class AmplitudeRamp(EnvExperiment):
             self.urukul0_ch0.set(frequency=self.frequency, amplitude=self.amplitude)
             self.urukul0_ch0.set_att(0 * dB)
             self.urukul0_ch0.sw.on()
+           # self.zotino0.write_dac(12, self.zotino_amplitude)
+           # self.zotino0.load()
+            delay(0.1 * ms)
+
             print("Urukul0 ch0 on")
             print(self.amplitude)
             delay(1*ms)
 
             self.turn_on_nonRFDDS()
-            self.krun(self.target_amplitude)
+            # self.krun(self.target_amplitude)
+            #self.krun(self.zotino_target)
+            #self.zotino_amplitude = self.get_dataset("ZotinoCh12_RFamp")
+
 
         else:
             #self.target_amplitude=self.lowerlim # always will ramp to lower value before turning off
             self.turn_on_nonRFDDS()
-            self.krun(self.lowerlim)
+            #self.krun(self.lowerlim)
             self.turn_off()
+
+           # self.zotino0.write_dac(12, 0.0)
+           # self.zotino0.load()
+            delay(0.1 * ms)
+
             delay(1*ms)
             print("Urukul0 ch0 off")
         # self.urukul0_ch1.init()
@@ -146,21 +156,21 @@ class AmplitudeRamp(EnvExperiment):
 
     @kernel
     def krun(self,targetamp):
-        #self.core.reset()
-        # #self.ttl0.input()
-        # self.urukul0_cpld.init() #new
-        # self.urukul0_ch0.cpld.init()
-        # self.urukul0_ch0.init()
-       # amp = self.urukul0_ch0.get_amplitude()
-       #  delay(1 * ms)
-       #  self.urukul0_ch0.set(frequency=self.frequency,amplitude=self.amplitude)
-       #  self.urukul0_ch0.sw.on()
-       #  print(self.amplitude)
-       #delay(2*ms)
+        self.core.reset()
+        #self.ttl0.input()
+        self.urukul0_cpld.init() #new
+        self.urukul0_ch0.cpld.init()
+        self.urukul0_ch0.init()
+        amp = self.urukul0_ch0.get_amplitude()
+        delay(1 * ms)
+        self.urukul0_ch0.set(frequency=self.frequency,amplitude=self.amplitude)
+        self.urukul0_ch0.sw.on()
+        print(self.amplitude)
+        delay(2*ms)
 
 
-       # self.urukul0_ch0.sw.on()
-        amp=self.amplitude
+        self.urukul0_ch0.sw.on()
+        amp=self.zotino_amplitude
         delay(2*ms)
 
 
@@ -191,9 +201,15 @@ class AmplitudeRamp(EnvExperiment):
             #    self.check_termination()
 
                 ampplus=(amp + self.ramp_rate)
-                self.urukul0_ch0.set(frequency=self.frequency,amplitude=ampplus)
+                # self.urukul0_ch0.set(frequency=self.frequency,amplitude=ampplus)
                 delay(2*ms)
-                self.set_dataset("UrukulCh0_RFamp", ampplus, broadcast=True, persist=True)
+
+                #self.zotino0.write_dac(12, ampplus)
+                #self.zotino0.load()
+                delay(0.1 * ms)
+
+                # self.set_dataset("UrukulCh0_RFamp", ampplus, broadcast=True, persist=True)
+                self.set_dataset("ZotinoCh12_RFamp", ampplus, broadcast=True, persist=True)
                 #print(amp)
                 #for multiple points
                 if (idx % self.dataReprate == 0):
@@ -224,9 +240,14 @@ class AmplitudeRamp(EnvExperiment):
                 #     return
              #   self.check_termination()
                 ampminus=(amp - self.ramp_rate)
-                self.urukul0_ch0.set(frequency=self.frequency, amplitude=ampminus)
+                # self.urukul0_ch0.set(frequency=self.frequency, amplitude=ampminus)
                 delay(2 * ms)
-                self.set_dataset("UrukulCh0_RFamp", ampminus, broadcast=True, persist=True)
+
+                #self.zotino0.write_dac(12, ampminus)
+                #self.zotino0.load()
+                delay(0.1 * ms)
+                # self.set_dataset("UrukulCh0_RFamp", ampminus, broadcast=True, persist=True)
+                self.set_dataset("ZotinoCh12_RFamp", ampminus, broadcast=True, persist=True)
                 #print(amp)
                 # for multiple points
                 if(idx % self.dataReprate == 0):
@@ -245,11 +266,15 @@ class AmplitudeRamp(EnvExperiment):
                 # delay(1*ms)
         print("Ramp complete")
         delay(4*ms)
-        self.urukul0_ch0.set(frequency=self.frequency,amplitude=targetamp)
-        delay(1 * ms)
-        self.set_dataset("UrukulCh0_RFamp",targetamp, broadcast=True, persist=True )
+        # self.urukul0_ch0.set(frequency=self.frequency,amplitude=targetamp)
         delay(1 * ms)
 
+        #self.zotino0.write_dac(12, targetamp)
+        #self.zotino0.load()
+        delay(0.1 * ms)
+
+        self.set_dataset("ZotinoCh12_RFamp",targetamp, broadcast=True, persist=True )
+        delay(1 * ms)
         # Now setting the loop to wait.
 
         # time0=time+self.wait_time
@@ -294,6 +319,8 @@ class AmplitudeRamp(EnvExperiment):
     #@kernel
     def run(self):
         self.activateUrukul()
+        #print("Ramp complete")
+
        # self.krun()
 
 

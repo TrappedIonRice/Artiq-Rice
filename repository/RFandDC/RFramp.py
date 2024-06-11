@@ -18,7 +18,7 @@ class RFControl_Arduino(EnvExperiment):
         self.amplitude=self.get_dataset("RFamp_Arduino")
         #self.setattr_device("scheduler")
         self.setattr_device("ccb")  # needed to make plots displaying the counts
-        self.serialobj = serial.Serial(port="COM5",baudrate=9600)
+        self.serialobj = serial.Serial(port="COM2",baudrate=9600)
 
 
     def prepare(self):
@@ -40,6 +40,7 @@ class RFControl_Arduino(EnvExperiment):
         amp = self.amplitude
         idx = 0
         time = 0.0
+        starttime = timelib.time()
 
         if self.target_amplitude > amp:
             while amp < self.target_amplitude:
@@ -57,7 +58,7 @@ class RFControl_Arduino(EnvExperiment):
                 time += (self.time_step)# * 1000
                 idx +=1
                 timelib.sleep(2 * ms)
-                print("{0:.3f}s : RF {1:.3f}".format(time,amp))
+                print("{0:.3f}s : RF {1:.3f}".format(timelib.time() - starttime,amp))
 
 
         else:
@@ -79,7 +80,7 @@ class RFControl_Arduino(EnvExperiment):
                 time += self.time_step# * 1000
                 idx += 1
                 timelib.sleep(2 * ms)
-                print("{0:.3f}s : RF {1:.3f}".format(time,amp))
+                print("{0:.3f}s : RF {1:.3f}".format(timelib.time() - starttime,amp))
 
         print("Ramp complete")
         self.ArduinoWrite(self.target_amplitude)
