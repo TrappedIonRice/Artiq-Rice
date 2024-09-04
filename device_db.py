@@ -406,15 +406,19 @@ device_db["led1"] = {
     "arguments": {"channel": 0x00001c}
 }
 
+# updated 2024/8/26
 aliases = {
     "PMT_counts": "ttl0",
+    "Recooling trigger": "ttl4",
     "Camera_fire": "ttl7",
-    "Doppler": "urukul0_ch0",
-    "Detection": "urukul0_ch1",
-    "OP": "urukul0_ch2",
-    "MW": "urukul0_ch3",
-    "935": "urukul0_ch1",
-    "435": "urukul0_ch2",
+    "Doppler": "urukul0_ch1",
+    "Detection": "urukul0_ch3",
+    "OP": "urukul1_ch1",
+    "MW": "urukul1_ch2",
+    "935": "urukul0_ch2",
+    "435_1": "urukul0_ch0",
+    "435_2": "urukul1_ch0",
+    "355_switch": "urukul1_ch3",
     # "zotino": "zotino0"
 }
 device_db.update(aliases)

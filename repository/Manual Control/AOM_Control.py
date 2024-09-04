@@ -17,6 +17,7 @@ class AOMControl(EnvExperiment):
         self.setattr_device("urukul1_ch0")
         self.setattr_device("urukul1_ch1")
         self.setattr_device("urukul1_ch2")
+        self.setattr_device("urukul1_ch3")
 
 
 
@@ -37,7 +38,7 @@ class AOMControl(EnvExperiment):
         self.setattr_argument("u0ch3_Detection_or_Tickler", BooleanValue(default=False), tooltip="Detection or Tickler", group="ch3")
         self.setattr_argument("u1ch1_OP", BooleanValue(default=False), tooltip="OP")
         self.setattr_argument("u1ch2_MW", BooleanValue(default=False), tooltip="MW")
-
+        self.setattr_argument("u1ch3_355switch", BooleanValue(default=False), tooltip="355 Switch")
 
 
 
@@ -81,6 +82,10 @@ class AOMControl(EnvExperiment):
         self.TicklingAmp = self.get_dataset("Tickling.Amp")
         self.TicklingFrequency = self.get_dataset("Tickling.Frequency")
         self.TicklingAtt=self.get_dataset("Tickling.Attenuation")
+
+        self.Switch355Amp = self.get_dataset("355_switch.Amp")
+        self.Switch355Frequency = self.get_dataset("355_switch.Frequency")
+        self.Switch355Att = self.get_dataset("355_switch.Attenuation")
 
 
     # @kernel
@@ -165,6 +170,14 @@ class AOMControl(EnvExperiment):
             self.urukul1_ch2.sw.on()
         else:
             self.urukul1_ch2.sw.off()
+
+        self.urukul1_ch3.init()
+        self.urukul1_ch3.set(frequency=self.Switch355Frequency, amplitude=self.Switch355Amp)
+        self.urukul1_ch3.set_att(self.Switch355Att * dB)
+        if self.u1ch3_355switch == True:
+            self.urukul1_ch3.sw.on()
+        else:
+            self.urukul1_ch3.sw.off()
 
 
     @kernel

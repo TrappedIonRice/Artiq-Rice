@@ -35,7 +35,7 @@ class runScan(Fragment):
 
 
     @kernel
-    def ON(self, wait_time, coolingfreq,coolingamp, coolingtime, detFreq,detAmp, detTime, num_repeat):
+    def ON(self, wait_time, coolingfreq,coolingamp, coolingtime, detFreq, detAmp, detTime, num_repeat):
 
         """Pulses urukul ch0, ch1, ch2, then counts num rising edges (cycles) from ttl0 for x us. Calculates mean
         rising edges for a given num_repeat to push to counts channel"""
@@ -49,46 +49,65 @@ class runScan(Fragment):
         #delay(1*us)
         # self.urukul0_ch0.sw.on() # turns it on as in the last config
         self.urukul0_ch1.init()
+        self.urukul0_ch1.set_att(0 * dB)
+        self.urukul0_ch1.sw.off()
         self.urukul0_ch2.init()
         self.urukul0_ch2.set_att(0 * dB)
         self.urukul0_ch2.sw.on()
         self.urukul0_ch3.init()
         self.urukul0_ch3.set_att(0 * dB)
+        self.urukul0_ch3.sw.off()
+
 
         # self.ttl.input()
         self.ttl4.output()
 
         self.sum_rising_edges = 0.0
 
-        self.urukul0_ch1.set_att(0*dB)
 
         #exp loop without dma
         i=0
         while(i<num_repeat):
-            delay(30 * us)  # This delay will exist between scan points
+            #delay(-300*us)  # This delay will exist between scan points
             # Doppler cool initially using Global freq and amplitude
+            #self.ttl4.on()
             self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
             #delay(30*us)
-            self.urukul0_ch1.set_att(0 * dB)
+            #self.urukul0_ch1.set_att(0 * dB)
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
             delay(coolingtime)
             self.urukul0_ch1.sw.off()
             #wait
+
             delay(wait_time)
 
             # Reset Detection DC freq, amp
-            self.urukul0_ch3.set(frequency=detFreq, amplitude=detAmp)
-            self.urukul0_ch3.set_att(0 * dB)
+            # self.urukul0_ch3.set(frequency=detFreq, amplitude=detAmp)
+            # self.urukul0_ch3.set_att(0 * dB)
 
+            # Reset Doppler freq, amp
+            self.urukul0_ch1.set(frequency=detFreq, amplitude=detAmp)
+            #self.urukul0_ch1.set(frequency=detFreq, amplitude=detAmp)
+            #self.urukul0_ch1.set_att(0 * dB)
+            #delay(-50*us)
+
+
+
+            #delay(1*ms)
+            #Detection DC on
+            #delay(-100*ns) # to sync TTL4 and Doppler DDS
+            #self.urukul0_ch3.sw.on()
+            # Doppler on
             # rising trigger to timeharp
             self.ttl4.on()
-            #Detection DC on
-            delay(-100*ns) # to sync TTL4 and Doppler DDS
-            self.urukul0_ch3.sw.on()
+            delay(0.1*ms)
+            self.urukul0_ch1.sw.on()
             #Detection with Doppler using script specific freq and amplitude
 
+
             # for simple detection using edge counter
-            self.ttl.gate_rising(detTime)
+            delay(detTime)
+            #self.ttl.gate_rising(detTime)
             # without edge counter
             #detcounts_time = self.ttl.gate_rising(detTime)
 
@@ -101,18 +120,25 @@ class runScan(Fragment):
             #             delay(detTime/(maxttl2*2.0))
 
             # Detection DC off
-            self.urukul0_ch3.sw.off()
+            # self.urukul0_ch3.sw.off()
             # falling trigger to timeharp
             self.ttl4.off()
-            delay(-2*us) # to match TTL4 falling edge and Doppler on edges
+            # Doppler off
+            self.urukul0_ch1.sw.off()
+
+
+            #delay(1*ms)
+            #delay(-2*us) # to match TTL4 falling edge and Doppler on edges
             #continue Doppler
             self.urukul0_ch1.set(frequency=coolingfreq, amplitude=coolingamp, phase_mode=2)
+            #delay(500 * us)
+
             #delay(5 * us)
             self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
-
+            #self.ttl4.off()
             #extra computations always left at the end of the scan, or else RTIO underflow occurs
-            x=self.ttl.fetch_count()
-            self.sum_rising_edges = self.sum_rising_edges + x
+            # x=self.ttl.fetch_count()
+            # self.sum_rising_edges = self.sum_rising_edges + x
             delay(1*ms)
 
             i=i+1

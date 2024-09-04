@@ -70,7 +70,7 @@ for ii, rid in enumerate(lst_rids):
     y_vals_1 = list(dict_datasets[key_name_y])
     err_vals_1 = list(dict_datasets[key_name_err])
     # x_vals_1 = np.array(x_vals_1) * 1e-3
-    plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, fmt="o")
+    plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, fmt="-o")
     plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="{0:d}".format(rid))
     # plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="Data")
 
@@ -112,20 +112,20 @@ for ii, rid in enumerate(lst_rids):
 
                 print(popt)
                 plt.plot(x_fit, y_fit , label='Fit: ' + str(popt), color=colorlist[ii])
-                # plt.plot(x_fit, y_fit, label='Fit', color=colorlist[ii])
+                #plt.plot(x_fit, y_fit, label='Fit', color=colorlist[ii])
                 plt.xlabel(xlabel_axis0)
                 plt.ylabel('Counts')
 
 #disconnect_zoom = zoom_factory(axis)
 #pan_handler = panhandler(figure)
 #plt.xlabel('Time (μs)')  # Indicate that the x axis is in microseconds
-# plt.xlabel(xlabel_axis0)
-# plt.ylabel('counts')
+plt.xlabel(xlabel_axis0)
+plt.ylabel('counts')
 plt.ticklabel_format(style='sci', axis='x', scilimits=(-6, -6))
 plt.legend()
 plt.grid(visible=True)
-data = np.array([[x_vals_1, y_vals_1, err_vals_1], [x_fit, y_fit]])
-np.save(r'Z:\Lab Rice\Experimental Projects\Monolithic Trap\435 measurements\Spectroscopy\radial_rsb_flopping_separatedataset', data)
+#data = np.array([[x_vals_1, y_vals_1, err_vals_1], [x_fit, y_fit]])
+#np.save(r'Z:\Lab Rice\Experimental Projects\Monolithic Trap\435 measurements\Spectroscopy\radial_rsb_flopping_separatedataset', data)
 plt.show()
 
 

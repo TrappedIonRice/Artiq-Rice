@@ -24,6 +24,7 @@ class runScan(Fragment):
         self.setattr_device("urukul1_ch0")
         self.setattr_device("urukul1_ch1") # OP
         self.setattr_device("urukul1_ch2") # MW
+        self.setattr_device("urukul1_ch3")  # 355 switch
 
         ttl_params = ["ttl0_counter"]
         self.setattr_argument("INPUT_TTL", EnumerationValue(ttl_params, default="ttl0_counter"))
@@ -76,8 +77,9 @@ class runScan(Fragment):
            SBCFrequency435_1, SBCAmplitude435_1, SBCFrequency435_2, SBCAmplitude435_2, SBCTime, SBCAmplitude935,
            ClearoutPower935, ClearoutTime935,
            prepfreq435, preptime, wait_time,
+           Frequency355switch, Amplitude355switch, Attenuation355switch,
            RamseyFrequency435, RamseyAmplitude435, PiBy2Time435_1,PiBy2Time435_2,
-           newEndcapX, newAllY, newAllZ, num_repeat):
+           newEndcapX, newAllY, newAllZ, piezo435V,  num_repeat):
 
         """Pulses urukul ch0, ch1, ch2, then counts num rising edges (cycles) from ttl0 for x us. Calculates mean
         rising edges for a given num_repeat to push to counts channel"""
@@ -110,6 +112,11 @@ class runScan(Fragment):
             self.zotino0.write_dac(self.DCElectrodeMapping[i],self.modDCElectrodeValues[ind])
             self.zotino0.load()
             delay(2 * ms)
+
+        # piezo voltage  update
+        self.zotino0.write_dac(12, piezo435V)
+        self.zotino0.load()
+        delay(2 * ms)
 
         self.urukul0_cpld.init()
         delay(10 * ms)
@@ -155,6 +162,12 @@ class runScan(Fragment):
 
 
         self.ttl5.output()
+
+        # 355
+        self.urukul1_ch3.init()
+        self.urukul1_ch3.set_att(Attenuation355switch* dB)
+        self.urukul1_ch3.set(frequency=Frequency355switch, amplitude=Amplitude355switch, phase_mode=2)
+        self.urukul1_ch3.sw.off()
 
         self.sum_rising_edges = 0.0
 
@@ -203,47 +216,67 @@ class runScan(Fragment):
             # self.urukul1_ch0.sw.off()
             # self.urukul0_ch2.sw.off()
 
-            # 1st order Yb171
-          #   self.urukul0_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
-          #  # self.urukul1_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
-          #   self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
-          #   self.urukul0_ch2.set(frequency=freq_935, amplitude=SBCAmplitude935, phase_mode=2)
-          #  # self.urukul1_ch2.set(frequency=MW_freq, amplitude=MW_amp, phase_mode=2)
-          #  # self.urukul1_ch2.sw.on()
-          #   self.urukul0_ch0.sw.on()
-          # #  self.urukul1_ch0.sw.on()
-          #   self.urukul0_ch2.sw.on()
-          #   self.urukul1_ch1.sw.on()
-          #   delay(SBCTime)
-          #   self.urukul0_ch0.sw.off()
-          # #  self.urukul1_ch0.sw.off()
-          #   self.urukul0_ch2.sw.off()
-          #   self.urukul1_ch1.sw.off()
-          # #  self.urukul1_ch2.sw.off()
+            # 2nd order Yb171, uses ch2 435
+            # # self.urukul0_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
+            # self.urukul1_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
+            # self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
+            # self.urukul0_ch2.set(frequency=freq_935, amplitude=SBCAmplitude935, phase_mode=2)
+            # # self.urukul1_ch2.set(frequency=MW_freq, amplitude=MW_amp, phase_mode=2)
+            # # self.urukul1_ch2.sw.on()
+            # #self.urukul0_ch0.sw.on()
+            # self.urukul1_ch0.sw.on()
+            # self.urukul0_ch2.sw.on()
+            # self.urukul1_ch1.sw.on()
+            # delay(SBCTime*0)
+            # #self.urukul0_ch0.sw.off()
+            # self.urukul1_ch0.sw.off()
+            # self.urukul0_ch2.sw.off()
+            # self.urukul1_ch1.sw.off()
+            # #  self.urukul1_ch2.sw.off()
+
+
+
+            # 1st order Yb171, uses ch1 435
+            self.urukul0_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
+           # self.urukul1_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
+            self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
+            self.urukul0_ch2.set(frequency=freq_935, amplitude=SBCAmplitude935, phase_mode=2)
+           # self.urukul1_ch2.set(frequency=MW_freq, amplitude=MW_amp, phase_mode=2)
+           # self.urukul1_ch2.sw.on()
+            self.urukul0_ch0.sw.on()
+          #  self.urukul1_ch0.sw.on()
+            self.urukul0_ch2.sw.on()
+            self.urukul1_ch1.sw.on()
+            delay(SBCTime*0)
+            self.urukul0_ch0.sw.off()
+          #  self.urukul1_ch0.sw.off()
+            self.urukul0_ch2.sw.off()
+            self.urukul1_ch1.sw.off()
+          #  self.urukul1_ch2.sw.off()
 
 
 
             #delay(wait_time)
             # Pulsed SBC
-            self.urukul0_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
-            # self.urukul1_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
-            self.urukul0_ch2.set(frequency=freq_935, amplitude=SBCAmplitude935, phase_mode=2)
-            self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
+            # self.urukul0_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
+            # #self.urukul1_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
+            # self.urukul0_ch2.set(frequency=freq_935, amplitude=SBCAmplitude935, phase_mode=2)
+            # self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
+            #
+            # if SBCTime>0:
+            #     for cyc in range(40):
+            #         self.urukul0_ch0.sw.on()
+            #         delay(SBCTime)
+            #         self.urukul0_ch0.sw.off()
+            # #        self.urukul1_ch0.sw.on()
+            # #        delay(SBCTime)
+            # #        self.urukul1_ch0.sw.off()
+            #         self.urukul0_ch2.sw.on()
+            #         self.urukul1_ch1.sw.on()
+            #         delay(0.1*ms)
+            #         self.urukul0_ch2.sw.off()
+            #         self.urukul1_ch1.sw.off()
 
-            if SBCTime>0:
-                for cyc in range(10):
-                    self.urukul0_ch0.sw.on()
-                    delay(SBCTime)
-                    self.urukul0_ch0.sw.off()
-                   # self.urukul1_ch0.sw.on()
-                   # delay(SBCTime)
-                   # self.urukul1_ch0.sw.off()
-                    self.urukul0_ch2.sw.on()
-                    delay(0.03*ms)
-                    self.urukul0_ch2.sw.off()
-                    self.urukul1_ch1.sw.on()
-                    delay(0.05*ms)
-                    self.urukul1_ch1.sw.off()
 
             # D state prep with detection
             # self.urukul0_ch3.sw.on()
@@ -254,7 +287,7 @@ class runScan(Fragment):
             delay(10 * us)
             self.urukul0_ch2.set(frequency=freq_935, amplitude=ClearoutPower935, phase_mode=2)
             self.urukul0_ch2.sw.on()
-            delay(0.5*ms) # ClearoutTime935
+            delay(0.1* ms) # ClearoutTime935
             self.urukul0_ch2.sw.off()
             delay(10 * us)
 
@@ -264,7 +297,7 @@ class runScan(Fragment):
             # OP state prep with 935
 
             self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
-            self.urukul0_ch2.set(frequency=freq_935, amplitude=ClearoutPower935, phase_mode=2)
+            self.urukul0_ch2.set(frequency=freq_935, amplitude=0.8, phase_mode=2)
             self.urukul1_ch1.sw.on()
             self.urukul0_ch2.sw.on()
             delay(OP_time)
@@ -278,8 +311,8 @@ class runScan(Fragment):
             # 435 state prep
 
             # if preptime > 0.0:
-            self.urukul0_ch0.set(frequency=prepfreq435, amplitude=Amplitude435, phase_mode=2)
-            self.urukul0_ch2.set(frequency=freq_935, amplitude=0.23, phase_mode=2)
+            self.urukul0_ch0.set(frequency=prepfreq435,  amplitude=0.8, phase_mode=2)# amplitude=Amplitude435, phase_mode=2)
+            self.urukul0_ch2.set(frequency=freq_935, amplitude=0.8, phase_mode=2)# amplitude=0.23, phase_mode=2)
             self.urukul0_ch0.sw.on()
             self.urukul0_ch2.sw.on()
             delay(preptime)
@@ -290,11 +323,11 @@ class runScan(Fragment):
 
 
 
-            # pi pulse for inversion
-            # self.urukul0_ch0.set(frequency=250.1057*MHz, amplitude=Amplitude435, phase_mode=2)
-            # self.urukul1_ch0.set(frequency=241.032*MHz, amplitude=Amplitude435, phase_mode=2)
+            # 435 pi pulse for inversion
+            # self.urukul0_ch0.set(frequency=243.155416*MHz, amplitude=Amplitude435, phase_mode=2)
+            # # self.urukul1_ch0.set(frequency=241.032*MHz, amplitude=Amplitude435, phase_mode=2)
             # self.urukul0_ch0.sw.on()
-            # delay(0.001859*2*ms)
+            # delay(0.00079*ms)
             # self.urukul0_ch0.sw.off()
             #
             # self.urukul1_ch0.sw.on()
@@ -306,8 +339,8 @@ class runScan(Fragment):
 
             #delay(-1*us) # important for syncing. Must be before setting up the DDS config or else there is some gradual ampltiude ramp of 435 DDS
 
-            #435 ramsey
-            #if PiBy2Time435_1 > 0.0:
+            # # #435 ramsey
+            # #if PiBy2Time435_1 > 0.0:
             # self.urukul0_ch0.set(frequency=RamseyFrequency435, amplitude=RamseyAmplitude435, phase_mode=2)
             # self.urukul0_ch0.sw.on()
             # delay(PiBy2Time435_1)
@@ -324,13 +357,21 @@ class runScan(Fragment):
             # self.urukul0_ch0.sw.off()
 
             # MW ramsey
+
+
             self.urukul1_ch2.set(frequency=RamseyFrequency435, amplitude=RamseyAmplitude435, phase_mode=2)
             self.urukul1_ch2.sw.on()
             delay(PiBy2Time435_1)
             self.urukul1_ch2.sw.off()
 
-            # wait time
+            # # wait time
+            # delay(wait_time)
+
+            # wait time with 355 on
+            self.urukul1_ch3.sw.on()
             delay(wait_time)
+            self.urukul1_ch3.sw.off()
+
 
             # Ramsey second pi 435 pulse
             # if PiBy2Time435_2 > 0.0:
@@ -363,7 +404,7 @@ class runScan(Fragment):
             # For dual drive
 
             # self.urukul0_ch0.set(frequency=Frequency435, amplitude=Amplitude435, phase_mode=2)
-            # self.urukul1_ch0.set(frequency=prepfreq435, amplitude=0.1, phase_mode=2)
+            # self.urukul1_ch0.set(frequency=prepfreq435, amplitude=Amplitude435, phase_mode=2)
             # self.urukul0_ch0.sw.on()
             # self.urukul1_ch0.sw.on()
             # delay(Time435)
@@ -388,21 +429,25 @@ class runScan(Fragment):
             self.urukul1_ch2.sw.off()
 
             # 935 clearout
-            # delay(10 * us)
+            # # delay(10 * us)
             # self.urukul0_ch2.set(frequency=freq_935, amplitude=ClearoutPower935, phase_mode=2)
             # self.urukul0_ch2.sw.on()
             # delay(ClearoutTime935)
             # self.urukul0_ch2.sw.off()
             # delay(10 * us)
 
-
-
+            # self.urukul0_ch3.sw.on()
+            # #delay(200*us)
+            # delay(wait_time)
+            # self.urukul0_ch3.sw.off()
+           # # # self.urukul0_ch2.sw.off()
+           # delay(wait_time)
 
             # Detection
 
             self.urukul0_ch3.sw.on()
-            self.urukul0_ch2.set(frequency=freq_935, amplitude=0.03, phase_mode=2)
-            self.urukul0_ch2.sw.on() #935 on
+            # self.urukul0_ch2.set(frequency=freq_935, amplitude=0.01, phase_mode=2)
+            # self.urukul0_ch2.sw.on() #935 on
             # for simple detection using edge counter
             self.ttl.gate_rising(det_time)
 
@@ -420,7 +465,7 @@ class runScan(Fragment):
                 # Detection off
                 #delay(-100*us)
             self.urukul0_ch3.sw.off()
-            self.urukul0_ch2.sw.off() #935 on
+            # self.urukul0_ch2.sw.off() #935 on
 
             #delay(100 * us)
 
@@ -491,10 +536,10 @@ class executeScan(ExpFragment):
        # self.setattr_param("channel", IntParam, "CHOOSE URUKUL CHANNEL (0-3)", default=0)
 
         self.setattr_param("SBCcheck", BoolParam, "SBC 435: ", default=False)
-        self.setattr_param("SBCFrequency435_1", FloatParam, "Set SBC Frequency 435_1", unit="MHz", default=247.942078 * MHz)
+        self.setattr_param("SBCFrequency435_1", FloatParam, "Set SBC Frequency 435_1", unit="MHz", default=242.345714 * MHz)
         self.setattr_param("SBCAmplitude435_1", FloatParam, "Set SBC Amplitude 435_1 ", unit="", default=0.00, min=0.00, max=0.8)
 
-        self.setattr_param("SBCFrequency435_2", FloatParam, "Set SBC Frequency 435_2", unit="MHz", default=238.8618 * MHz)
+        self.setattr_param("SBCFrequency435_2", FloatParam, "Set SBC Frequency 435_2", unit="MHz", default=239.7525 * MHz)
         self.setattr_param("SBCAmplitude435_2", FloatParam, "Set SBC Amplitude 435_2 ", unit="", default=0.00, min=0.00, max=0.8)
 
         self.setattr_param("SBCTime", FloatParam, "Set SBC Time ", unit="ms", default=1.00 * ms)
@@ -509,7 +554,7 @@ class executeScan(ExpFragment):
         self.setattr_param("preptimeOP", FloatParam, "Set Prep OP time", unit="ms", default=0.05 * ms)
 
         self.setattr_param("StatePrep", BoolParam, "State Preparation: ", default=False)
-        self.setattr_param("prepfreq435", FloatParam, "Set Prep 435 frequency", unit="MHz", default=250.08655 * MHz)
+        self.setattr_param("prepfreq435", FloatParam, "Set Prep 435 frequency", unit="MHz", default=234.1743* MHz)
         self.setattr_param("preptime", FloatParam, "Set Prep time", unit="ms", default=2 * ms)
 
         self.setattr_param("choice435", IntParam, "Choose 435 channel (1,2): ", default=1, min=1, max=2)
@@ -517,18 +562,20 @@ class executeScan(ExpFragment):
         self.setattr_param("Ramsey435check", BoolParam, "Ramsey on/off: ", default=False)
         self.setattr_param("WaitTime", FloatParam, "Set Wait Time ", unit="ms", default=0.00 * ms)
 
-        self.setattr_param("FrequencyMW", FloatParam, "Set Frequency MW", unit="MHz", default=142 * MHz)
+        self.setattr_param("FrequencyMW", FloatParam, "Set Frequency MW", unit="MHz", default=142.822912 * MHz)
         self.setattr_param("AmplitudeMW", FloatParam, "Set Amplitude MW ", unit="", default=0.000, min=0.00, max=0.8)
         self.setattr_param("TimeMW", FloatParam, "Set Time MW ", unit="ms", default=0.01 * ms)
 
-        self.setattr_param("Frequency435", FloatParam, "Set Frequency 435",unit="MHz", default= 250.08655*MHz) #changed min to 1 to avoid fit issue when 0
+        self.setattr_param("Frequency435", FloatParam, "Set Frequency 435",unit="MHz", default= 243.2854*MHz) #changed min to 1 to avoid fit issue when 0
         self.setattr_param("Amplitude435", FloatParam, "Set Amplitude 435 ", unit="", default=0.000 , min=0.00, max=0.8)  # changed min to 1 to avoid fit issue when 0
         self.setattr_param("Time435", FloatParam, "Set Time 435 ",unit="ms", default= 0.01*ms)
-        self.setattr_param("DetTime369", FloatParam, "Set Detection Time ", unit="ms", default=0.04 * ms)
+        self.setattr_param("DetTime369", FloatParam, "Set Detection Time ", unit="ms", default=0.1 * ms)
 
         self.setattr_param("endcapX", FloatParam, "Set EndcapX ", unit="", default=0.0 )
         self.setattr_param("allY", FloatParam, "Set AllY ", unit="", default=0.0 )
-        self.setattr_param("allZ", FloatParam, "Set AllZ ", unit="", default=0.0436 )
+        self.setattr_param("allZ", FloatParam, "Set AllZ ", unit="", default=-0.07 )
+
+        self.setattr_param("piezo435V", FloatParam, "Set 435 Piezo Vertical ", unit="", default=5, min= 0.0, max= 10.0)
 
         self.setattr_fragment("run", runScan) #Assigns runScan fragment and its attributes/functions to this fragment
 
@@ -570,6 +617,12 @@ class executeScan(ExpFragment):
 
 
         self.attenuation_435_1=self.get_dataset("435_1.Attenuation")
+
+        self.frequency355switch= self.get_dataset("355_switch.Frequency")
+        self.amplitude355switch=self.get_dataset("355_switch.Amp")
+        self.attenuation355switch= self.get_dataset("355_switch.Attenuation")
+
+
 
         self.RamseyFrequency435mod=self.get_dataset("Ramsey.Frequency435")+self.get_dataset("Ramsey.Detuning435")
         self.RamseyAmplitude435= self.get_dataset("Ramsey.Amplitude435")
@@ -621,8 +674,9 @@ class executeScan(ExpFragment):
                     self.ClearoutPower935.get(),self.ClearoutTime935.get(),\
                     self.prepfreq435.get(),self.modpreptime, \
                     self.WaitTime.get(), \
+                    self.frequency355switch, self.amplitude355switch, self.attenuation355switch,\
                     self.RamseyFrequency435mod, self.RamseyAmplitude435, self.PiBy2Time435_1mod, self.PiBy2Time435_2mod,\
-                    self.endcapX.get(),self.allY.get(), self.allZ.get(),\
+                    self.endcapX.get(),self.allY.get(), self.allZ.get(), self.piezo435V.get(),\
                     self.num_repeat) #calls ON function in runScan fragment
 
         # self.run.counts.push(np.log(self.run.mean_rising_edges))

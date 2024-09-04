@@ -23,7 +23,7 @@ class SetZotino(EnvExperiment):
 
 
         #self.zotino0.calibrate(self.channel,-9.999,9.999)
-        # self.zotino0.write_offset(self.channel,-0.0095)
+        # self.zotino0.write_offset(self.channel,-0.012)
         # self.zotino0.load()
         delay(200 * us)
         self.zotino0.write_dac(self.channel,self.value)
