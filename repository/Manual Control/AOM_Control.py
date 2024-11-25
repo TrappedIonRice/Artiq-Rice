@@ -19,8 +19,13 @@ class AOMControl(EnvExperiment):
         self.setattr_device("urukul1_ch2")
         self.setattr_device("urukul1_ch3")
 
+        self.setattr_device("urukul2_cpld")
+        self.setattr_device("urukul2_ch0")
+        self.setattr_device("urukul2_ch1")
+        self.setattr_device("urukul2_ch2")
+        self.setattr_device("urukul2_ch3")
 
-
+        self.setattr_device("ttl6") # new Raman2 switch
 
         # #channel dictionary (Modify assignments here) unfortunately dictionaries dont work well at the kernel level
         # self.chdict={0:[self.Amp435,self.Frequency435],1:[self.DopplerAmp,self.DopplerFrequency],2:[self.Amp935,self.Frequency935],3:[self.TicklingAmp,self.TicklingFrequency]}
@@ -38,8 +43,11 @@ class AOMControl(EnvExperiment):
         self.setattr_argument("u0ch3_Detection_or_Tickler", BooleanValue(default=False), tooltip="Detection or Tickler", group="ch3")
         self.setattr_argument("u1ch1_OP", BooleanValue(default=False), tooltip="OP")
         self.setattr_argument("u1ch2_MW", BooleanValue(default=False), tooltip="MW")
-        self.setattr_argument("u1ch3_355switch", BooleanValue(default=False), tooltip="355 Switch")
-
+        #self.setattr_argument("u1ch3_355switch", BooleanValue(default=False), tooltip="355 Switch")
+        self.setattr_argument("u2ch0_355_Raman1", BooleanValue(default=False), tooltip="355_Raman1")
+        #self.setattr_argument("u2ch1_355_Raman2", BooleanValue(default=False), tooltip="355_Raman2")
+        self.setattr_argument("ttl6_355_Raman2", BooleanValue(default=False), tooltip="355_Raman2")
+        #self.setattr_argument("u2ch3_355_RR_lock", BooleanValue(default=False), tooltip="355_RR_lock")
 
 
        # self.target_amplitude=round(self.target_amplitude
@@ -78,14 +86,25 @@ class AOMControl(EnvExperiment):
         self.Att935=self.get_dataset("935.Attenuation")
 
 
-
         self.TicklingAmp = self.get_dataset("Tickling.Amp")
         self.TicklingFrequency = self.get_dataset("Tickling.Frequency")
         self.TicklingAtt=self.get_dataset("Tickling.Attenuation")
 
-        self.Switch355Amp = self.get_dataset("355_switch.Amp")
-        self.Switch355Frequency = self.get_dataset("355_switch.Frequency")
-        self.Switch355Att = self.get_dataset("355_switch.Attenuation")
+        # self.Switch355Amp = self.get_dataset("355_switch.Amp")
+        # self.Switch355Frequency = self.get_dataset("355_switch.Frequency")
+        # self.Switch355Att = self.get_dataset("355_switch.Attenuation")
+
+        # self.RrLock355Amp = self.get_dataset("355_RR_lock.Amp")
+        # self.RrLock355Frequency = self.get_dataset("355_RR_lock.Frequency")
+        # self.RrLock355Att = self.get_dataset("355_RR_lock.Attenuation")
+
+        self.Raman1_355Amp = self.get_dataset("355_Raman1.Amp")
+        self.Raman1_355Frequency = self.get_dataset("355_Raman1.Frequency")
+        self.Raman1_355Att = self.get_dataset("355_Raman1.Attenuation")
+
+        # self.Raman2_355Amp = self.get_dataset("355_Raman2.Amp")
+        # self.Raman2_355Frequency = self.get_dataset("355_Raman2.Frequency")
+        # self.Raman2_355Att = self.get_dataset("355_Raman2.Attenuation")
 
 
     # @kernel
@@ -106,6 +125,7 @@ class AOMControl(EnvExperiment):
         if self.u0ch0_435_1 == True:
             self.urukul0_ch0.sw.on()
         else:
+            self.urukul0_ch0.set_att(30*dB)
             self.urukul0_ch0.sw.off()
 
         self.urukul1_ch0.init()
@@ -114,8 +134,8 @@ class AOMControl(EnvExperiment):
         if self.u1ch0_435_2 == True:
             self.urukul1_ch0.sw.on()
         else:
+            self.urukul1_ch0.set_att(30 * dB)
             self.urukul1_ch0.sw.off()
-        
 
 
         self.urukul0_ch1.init()
@@ -124,6 +144,7 @@ class AOMControl(EnvExperiment):
         if self.u0ch1_Doppler == True:
             self.urukul0_ch1.sw.on()
         else:
+            self.urukul0_ch1.set_att(30 * dB)
             self.urukul0_ch1.sw.off()
 
         self.urukul0_ch2.init()
@@ -132,10 +153,10 @@ class AOMControl(EnvExperiment):
         if self.u0ch2_935 == True:
             self.urukul0_ch2.sw.on()
         else:
+            self.urukul0_ch2.set_att(30 * dB)
             self.urukul0_ch2.sw.off()
 
         self.urukul0_ch3.init()
-
         if self.u0ch3_options=="Tickler":
             self.urukul0_ch3.init()
             self.urukul0_ch3.set(frequency=self.TicklingFrequency, amplitude=self.TicklingAmp)
@@ -143,6 +164,7 @@ class AOMControl(EnvExperiment):
             if self.u0ch3_Detection_or_Tickler == True:
                 self.urukul0_ch3.sw.on()
             else:
+                self.urukul0_ch3.set_att(30 * dB)
                 self.urukul0_ch3.sw.off()
             delay(1 * ms)
         elif self.u0ch3_options=="Detection":
@@ -152,6 +174,7 @@ class AOMControl(EnvExperiment):
             if self.u0ch3_Detection_or_Tickler == True:
                 self.urukul0_ch3.sw.on()
             else:
+                self.urukul0_ch3.set_att(30 * dB)
                 self.urukul0_ch3.sw.off()
             delay(1*ms)
 
@@ -161,6 +184,7 @@ class AOMControl(EnvExperiment):
         if self.u1ch1_OP == True:
             self.urukul1_ch1.sw.on()
         else:
+            self.urukul1_ch1.set_att(30 * dB)
             self.urukul1_ch1.sw.off()
 
         self.urukul1_ch2.init()
@@ -169,15 +193,54 @@ class AOMControl(EnvExperiment):
         if self.u1ch2_MW == True:
             self.urukul1_ch2.sw.on()
         else:
+            self.urukul1_ch2.set_att(30 * dB)
             self.urukul1_ch2.sw.off()
 
-        self.urukul1_ch3.init()
-        self.urukul1_ch3.set(frequency=self.Switch355Frequency, amplitude=self.Switch355Amp)
-        self.urukul1_ch3.set_att(self.Switch355Att * dB)
-        if self.u1ch3_355switch == True:
-            self.urukul1_ch3.sw.on()
+        # self.urukul1_ch3.init()
+        # self.urukul1_ch3.set(frequency=self.Switch355Frequency, amplitude=self.Switch355Amp)
+        # self.urukul1_ch3.set_att(self.Switch355Att * dB)
+        # if self.u1ch3_355switch == True:
+        #     self.urukul1_ch3.sw.on()
+        # else:
+        #     self.urukul1_ch3.set_att(30 * dB)
+        #     self.urukul1_ch3.sw.off()
+
+
+        self.urukul2_ch0.init()
+        self.urukul2_ch0.set(frequency=self.Raman1_355Frequency, amplitude=self.Raman1_355Amp)
+        self.urukul2_ch0.set_att(self.Raman1_355Att * dB)
+        if self.u2ch0_355_Raman1 == True:
+            self.urukul2_ch0.sw.on()
         else:
-            self.urukul1_ch3.sw.off()
+            self.urukul2_ch0.set_att(30 * dB)
+            self.urukul2_ch0.sw.off()
+
+        # self.urukul2_ch1.init()
+        # self.urukul2_ch1.set(frequency=self.Raman2_355Frequency, amplitude=self.Raman2_355Amp)
+        # self.urukul2_ch1.set_att(self.Raman2_355Att * dB)
+        # if self.u2ch1_355_Raman2 == True:
+        #     self.urukul2_ch1.sw.on()
+        # else:
+        #     self.urukul2_ch1.sw.off()
+
+        # New Raman2 config with RF switch
+        self.ttl6.output()
+        if self.ttl6_355_Raman2 == True:
+            self.ttl6.on()
+        else:
+            self.ttl6.off()
+
+
+        # self.urukul2_ch3.init()
+        # self.urukul2_ch3.set(frequency=self.RrLock355Frequency, amplitude=self.RrLock355Amp)
+        # self.urukul2_ch3.set_att(self.RrLock355Att * dB)
+        # if self.u2ch3_355_RR_lock == True:
+        #     self.urukul2_ch3.sw.on()
+        # else:
+        #     self.urukul2_ch3.set_att(30 * dB)
+        #     self.urukul2_ch3.sw.off()
+
+        delay(1 * ms)
 
 
     @kernel
@@ -190,6 +253,8 @@ class AOMControl(EnvExperiment):
         self.urukul0_ch0.init()
         self.urukul1_ch0.cpld.init()
         self.urukul1_ch0.init()
+        self.urukul2_ch0.cpld.init()
+        self.urukul2_ch0.init()
 
         #self.zotino0.init()
         delay(1*ms)

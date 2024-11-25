@@ -8,8 +8,8 @@ class PMTCounts(EnvExperiment):
     # \/ \/ \/ \/ \/ \/ build \/ \/ \/ \/ \/ \/
     def build(self):
         self.setattr_device("core")
-        self.setattr_device("ttl0")  #PMT Counts
-        self.setattr_device("ttl0_counter")
+        self.setattr_device("ttl1")  #PMT Counts
+        self.setattr_device("ttl1_counter")
         self.setattr_argument("Bin_Size", NumberValue(default=0.1, ndecimals=4, unit="s"))
         self.setattr_device("scheduler")
         self.setattr_argument("num_points", NumberValue(default=1000, ndecimals=0, step=1))
@@ -68,9 +68,9 @@ class PMTCounts(EnvExperiment):
 
             # t1=tm.perf_counter()
             for i in range(1, self.num_points + 1, 1):
-                self.ttl0_counter.gate_rising(self.Bin_Size * s)
+                self.ttl1_counter.gate_rising(self.Bin_Size * s)
                 delay(self.Bin_Size * s)
-                self.count = self.ttl0_counter.fetch_count()
+                self.count = self.ttl1_counter.fetch_count()
                 delay(10 * ms)
                 self.mutate_dataset("PMT_Counts.X_vals", self.num_points-i, time * self.Bin_Size)
                 self.mutate_dataset("PMT_Counts.Y_vals", self.num_points-i, self.count / self.Bin_Size)

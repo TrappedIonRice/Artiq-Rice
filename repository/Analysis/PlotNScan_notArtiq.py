@@ -44,7 +44,7 @@ with plt.ioff():  # for scrollwheel zoom functionality
 # clear previous plot
 
 plt.clf()
-colorlist=plt.cm.viridis(np.linspace(0.0,1.0,len(lst_rids)))
+colorlist=plt.cm.plasma(np.linspace(0.0,1.0,len(lst_rids)))
 
 
 for ii, rid in enumerate(lst_rids):
@@ -120,6 +120,7 @@ for ii, rid in enumerate(lst_rids):
 #pan_handler = panhandler(figure)
 #plt.xlabel('Time (μs)')  # Indicate that the x axis is in microseconds
 plt.xlabel(xlabel_axis0)
+#plt.xlabel('$\mu$s')
 plt.ylabel('counts')
 plt.ticklabel_format(style='sci', axis='x', scilimits=(-6, -6))
 plt.legend()
