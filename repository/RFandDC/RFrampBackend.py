@@ -8,7 +8,7 @@ if __name__=="__main__":
     serialobj2=serial.Serial('COM3',9600) # Read from COM2, with data written to COM1 from RFramp.py
     filename=r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice\dataset_db.pyon"
     RFkeyword="RFamp_Arduino"
-    V=0.1
+    V=0.2
     while(True):
         try:
 

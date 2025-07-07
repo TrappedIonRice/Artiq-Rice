@@ -23,14 +23,15 @@ class runScan(Fragment):
         self.setattr_device("urukul1_ch0")
         self.setattr_device("urukul1_ch1") # OP
         self.setattr_device("urukul1_ch2") # MW
-        self.setattr_device("urukul1_ch3")  # 355 switch
+        self.setattr_device("urukul1_ch3")  # 355 switchchanged to Raman 1 ch2
 
         self.setattr_device("urukul2_cpld")  # Necessary for clock sync
-        self.setattr_device("urukul2_ch0") # Raman 1
-        self.setattr_device("urukul2_ch1") # Raman 2
+        self.setattr_device("urukul2_ch0") # Raman 1 ch1
+        self.setattr_device("urukul2_ch1")
 
-        self.setattr_device("ttl5")
-        self.setattr_device("ttl6")
+        self.setattr_device("ttl4") # Camera Trigger
+        self.setattr_device("ttl5") # exp sync trigger
+        self.setattr_device("ttl6") # Raman 2 shutter
         self.histpoints = np.zeros(self.get_dataset("Repetitions"), dtype=int)
 
         ttl_params = ["ttl1_counter"]
@@ -159,7 +160,7 @@ class runScan(Fragment):
             self.urukul0_cpld.init()
             self.urukul1_cpld.init()
             self.urukul2_cpld.init()
-            delay(1 * ms)
+            delay(10 * ms)
             attenuation=3.0 # use as required
 
             # self.urukul0_cpld.init() # for now this isn't doing anything
@@ -225,6 +226,9 @@ class runScan(Fragment):
             # Experiment sync trigger
             self.ttl5.output()
 
+            # Camera shutter
+            self.ttl4.output()
+
             # self.urukul2_ch1.init()
             # self.urukul2_ch1.set_att(0 * dB)
             # self.urukul2_ch1.set(frequency=FrequencyRaman2, amplitude=AmplitudeRaman2, phase_mode=2)
@@ -256,7 +260,9 @@ class runScan(Fragment):
         with self.core_dma.record("seq"):
             #delay(30 * us)  # This delay will exist between repetitions
 
-            #self.ttl5.on()
+
+            #self.ttl4.on() # camera
+            self.ttl5.on()
             #if doppler_time> 0.0:
 
             self.urukul0_ch1.set_att(0 * dB)
@@ -267,12 +273,36 @@ class runScan(Fragment):
             #self.urukul1_ch3.sw.on()
             delay(doppler_time)
             #self.ttl.gate_rising(doppler_time)
-
+            #self.ttl4.off()
+            #delay(wait_time) # solely for camera acquisition . comment otherwise
             #self.urukul0_ch2.set_att(30 * dB)
             self.urukul0_ch1.sw.off()
             self.urukul0_ch2.sw.off()
+
+            #delay(50 * us)  # for debugging
+
             #self.urukul1_ch3.sw.off()
-            #self.ttl5.off()
+
+            self.ttl5.off()
+
+            # Doppler cooling ramp down
+            # self.urukul0_ch2.set_att(0 * dB)
+            # self.urukul0_ch1.set_att(0 * dB)
+            # self.urukul1_ch1.set_att(0 * dB)
+            # STEPS=50
+            # for step in range(STEPS):
+            #     self.urukul0_ch1.set(frequency=doppler_freq, amplitude=doppler_amp*(STEPS-step*1.0)/STEPS, phase_mode=2)
+            #     self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp*(step*1.0)/STEPS, phase_mode=2)
+            #     self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
+            #     self.urukul0_ch2.sw.on()
+            #     # self.urukul1_ch3.sw.on()
+            #     delay(doppler_time/STEPS*1.0)
+            #     # self.ttl.gate_rising(doppler_time)
+            #     # self.urukul0_ch2.set_att(30 * dB)
+            #     self.urukul0_ch1.sw.off()
+            #     self.urukul0_ch2.sw.off()
+
+
 
             # 2nd doppler cooling stage
             # self.urukul0_ch1.set(frequency=doppler_freq+10*MHz, amplitude=0.8, phase_mode=2)
@@ -304,7 +334,7 @@ class runScan(Fragment):
             self.urukul2_ch0.set_att(0 * dB)
             #delay(2.35*ms)
 
-            if SBCTime>0:
+            if SBCTime>0.1*us:
                 self.urukul1_ch1.sw.on()
                 delay(0.05 * ms)
                 #        self.urukul0_ch2.sw.off()
@@ -325,43 +355,58 @@ class runScan(Fragment):
                 #     self.urukul1_ch1.sw.off()
 
 
-                # Outer 1
-                self.urukul2_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
-                for cyc in range(120):
-                    self.urukul2_ch0.sw.on()
-                    self.ttl6.on()
-                    delay(0.009*ms)
-                    #delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
-                    self.urukul2_ch0.sw.off()
-                    self.ttl6.off()
-                    self.urukul1_ch1.sw.on()
-                    delay(0.03 * ms)
-                    self.urukul1_ch1.sw.off()
+                # # Outer 1
+                # self.urukul2_ch0.set(frequency=SBCFrequency435_1, amplitude=SBCAmplitude435_1, phase_mode=2)
+                # for cyc in range(50):
+                #     self.urukul2_ch0.sw.on()
+                #     self.ttl6.on()
+                #     delay(SBCTime)
+                #     #delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
+                #     self.urukul2_ch0.sw.off()
+                #     self.ttl6.off()
+                #
+                #     self.urukul1_ch1.sw.on()
+                #     delay(0.04 * ms) # prev 0.03ms need strong OP power
+                #     self.urukul1_ch1.sw.off()
 
 
                 # Inner 2
-                # self.urukul2_ch0.set(frequency=188.097807*MHz, amplitude=SBCAmplitude435_2, phase_mode=2)
-                # for cyc in range(80):
+                # self.urukul2_ch0.set(frequency=186.178285*MHz, amplitude=SBCAmplitude435_2, phase_mode=2)
+                # for cyc in range(30):
                 #     # self.ttl5.on()
                 #     self.urukul2_ch0.sw.on()
                 #     self.ttl6.on()
-                #     delay(0.02 * ms)
+                #     delay(0.3* ms)
                 #     self.urukul2_ch0.sw.off()
                 #     self.ttl6.off()
                 #     self.urukul1_ch1.sw.on()
-                #     delay(0.015 * ms)
+                #     delay(0.04 * ms)
                 #     self.urukul1_ch1.sw.off()
                 # # Inner 1
+
+                self.urukul2_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
+                for cyc in range(80):
+                    self.urukul2_ch0.sw.on()
+                    self.ttl6.on()
+                    # self.ttl5.on()
+                    delay(SBCTime)
+                    self.urukul2_ch0.sw.off()
+                    self.ttl6.off()
+                    self.urukul1_ch1.sw.on()
+                    delay(0.04 * ms)
+                    self.urukul1_ch1.sw.off()
+
+                # Axial
                 # self.urukul2_ch0.set(frequency=SBCFrequency435_2, amplitude=SBCAmplitude435_2, phase_mode=2)
-                # for cyc in range(80):
+                # for cyc in range(100):
                 #     self.urukul2_ch0.sw.on()
                 #     self.ttl6.on()
                 #     # self.ttl5.on()
-                #     delay(0.05*ms)
+                #     delay(SBCTime)
                 #     self.urukul2_ch0.sw.off()
                 #     self.ttl6.off()
                 #     self.urukul1_ch1.sw.on()
-                #     delay(0.03 * ms)
+                #     delay(0.1 * ms)
                 #     self.urukul1_ch1.sw.off()
 
                 # CSBC Raman
@@ -390,6 +435,9 @@ class runScan(Fragment):
                 delay(OP_time)
                 delay_mu(1)
                 self.urukul1_ch1.sw.off()
+
+                #delay(50 * us)  # for debugging
+
                 #self.urukul1_ch3.sw.off()
                 # self.urukul0_ch2.sw.off()
                 #self.ttl5.off()
@@ -426,9 +474,30 @@ class runScan(Fragment):
                 self.urukul1_ch2.sw.off()
                 #delay(0.05*ms)
 
+                # # # Raman 1 ch 1-RSB
+                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set_att(0 * dB)
+                # self.urukul2_ch0.sw.on()  # Raman 1
+                # self.ttl6.on()  # Raman 2
+                # delay(0.25 * us)  # AOM delay
+                # delay(Raman_time)
+                # self.urukul2_ch0.sw.off()  # Raman 1
+                # self.ttl6.off()  # Raman 2
+
+                # Raman pulse with MW
+                # # # Raman 1 ch 1
+                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set_att(0 * dB)
+                # self.urukul2_ch0.sw.on()
+                # self.ttl6.on()
+                # delay(0.25 * us)  # AOM delay
+                # delay(Raman_time)
+                # self.urukul2_ch0.sw.off()
+                # self.ttl6.off()
+
                 # # wait time
-                delay(wait_time)
-                delay_mu(1)
+                # delay(wait_time)
+                # delay_mu(1)
 
 
                 # wait time with 1 echo pi
@@ -449,15 +518,37 @@ class runScan(Fragment):
                 # wait time with 355 on
                 #
 
-                # self.urukul2_ch0.sw.on() # Raman 1
-                # #self.ttl6.on() # Raman 2
-                # delay(wait_time)
-                # delay_mu(1)
-                # self.urukul2_ch0.sw.off() # Raman 1
-                # #self.ttl6.off() # Raman 2
+                #self.urukul2_ch0.sw.on() # Raman 1
+                #self.ttl6.on() # Raman 2
+                delay(wait_time)
+                delay_mu(1)
+                #self.urukul2_ch0.sw.off() # Raman 1
+                #self.ttl6.off() # Raman 2
+                #
+                #
+                #
+                #
 
+                # Raman pulse with MW
+                # # Raman 1 ch 1
+                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set_att(0 * dB)
+                # self.urukul2_ch0.sw.on()
+                # self.ttl6.on()
+                # delay(0.25 * us)  # AOM delay
+                # delay(Raman_time)
+                # self.urukul2_ch0.sw.off()
+                # self.ttl6.off()
 
-
+                # # # Raman 1 ch 1-RSB
+                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set_att(0 * dB)
+                # self.urukul2_ch0.sw.on()  # Raman 1
+                # self.ttl6.on()  # Raman 2
+                # delay(0.25 * us)  # AOM delay
+                # delay(Raman_time)
+                # self.urukul2_ch0.sw.off()  # Raman 1
+                # self.ttl6.off()  # Raman 2
 
                 # Ramsey second pi 435 pulse
 
@@ -475,8 +566,8 @@ class runScan(Fragment):
 
                 # Raman Ramsey
 
-                #Ramsey first pi/2
-                # # self.urukul1_ch2.set_att(0 * dB)
+                # #Ramsey first pi/2
+                # self.urukul1_ch2.set_att(0 * dB)
                 # self.urukul2_ch0.set(frequency=RamseyFrequency435, amplitude=RamseyAmplitude435, phase_mode=2)
                 # # self.urukul1_ch2.set(frequency=MW_freq, amplitude=RamseyAmplitude435, phase_mode=2)
                 # self.urukul2_ch0.set_att(0 * dB)
@@ -486,13 +577,35 @@ class runScan(Fragment):
                 # delay(PiBy2Time435_1)
                 # #delay_mu(1)
                 # # self.urukul1_ch2.set_att(30 * dB)
-                # self.urukul1_ch2.sw.off()
+                # self.urukul2_ch0.sw.off()
                 # self.ttl6.off()
                 # # delay(0.05*ms)
                 #
-                # # wait time
+                # # delay(10*us)
+                # # # Raman 1 ch 1 -RSB
+                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set_att(0 * dB)
+                # # self.urukul2_ch0.sw.on()  # Raman 1
+                # # self.ttl6.on()  # Raman 2
+                # # delay(0.25 * us)  # AOM delay
+                # # delay(Raman_time)
+                # # self.urukul2_ch0.sw.off()  # Raman 1
+                # # self.ttl6.off()  # Raman 2
+                #
+                # #wait time
                 # delay(wait_time)
                 # delay_mu(1)
+                # #
+                # # for n in range(8):
+                # #     delay(wait_time/(2*8))
+                # #     delay_mu(1)
+                # #     self.urukul1_ch2.sw.on()
+                # #     delay(PiBy2Time435_1*2)
+                # #     delay_mu(1)
+                # #     # self.urukul1_ch2.set_att(30 * dB)
+                # #     self.urukul1_ch2.sw.off()
+                # #     delay(wait_time/(2*8))
+                # #     delay_mu(1)
                 #
                 # # wait time with 355 on
                 #
@@ -508,10 +621,21 @@ class runScan(Fragment):
                 # # self.ttl6.off() # Raman 2
                 # # self.urukul1_ch3.sw.off() # Raman 1 ch2
                 # # self.urukul2_ch0.sw.off() # Raman 1 ch1
+                # #
+                # #
                 #
+                # # # # Raman 1 ch 1-RSB
+                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set_att(0 * dB)
+                # # self.urukul2_ch0.sw.on()  # Raman 1
+                # # self.ttl6.on()  # Raman 2
+                # # delay(0.25 * us)  # AOM delay
+                # # delay(Raman_time)
+                # # self.urukul2_ch0.sw.off()  # Raman 1
+                # # self.ttl6.off()  # Raman 2
                 #
                 # # Ramsey second pi/2
-                #
+                # delay(10 * us)
                 # self.urukul2_ch0.set(frequency=RamseyFrequency435, amplitude=RamseyAmplitude435, phase_mode=2)
                 # # self.urukul1_ch2.set(frequency=MW_freq, amplitude=RamseyAmplitude435, phase_mode=2)
                 # # self.urukul1_ch2.set_att(0 * dB)
@@ -565,8 +689,10 @@ class runScan(Fragment):
             # self.urukul0_ch2.sw.off()
             # delay(10 * us)
 
+            # self.ttl5.on()
+            delay(wait_time)
+            # self.ttl5.off()
 
-            #delay(6*ms)
 
             # MW interaction
 
@@ -582,6 +708,9 @@ class runScan(Fragment):
                 delay_mu(1)
                 #self.urukul1_ch2.set_att(30 * dB)
                 self.urukul1_ch2.sw.off()
+
+                #delay(50 * us)  # for debugging
+
                 #self.ttl5.off()
             # 355 Turning on global switch
             #self.urukul1_ch3.set_att(0 * dB)
@@ -615,17 +744,21 @@ class runScan(Fragment):
             # self.ttl5.off()
             # self.urukul1_ch3.sw.off()
             # delay(4*ms)
-            if Raman_time > 0 * us:
 
-                # # Raman 1 ch 1
+            #delay(5*ms)
+
+            if Raman_time > 0.01 * us:
+
+                # Raman 1 ch 1
                 self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
                 self.urukul2_ch0.set_att(0 * dB)
-                self.urukul2_ch0.sw.on()
-                self.ttl6.on()
+                self.urukul2_ch0.sw.on()# Raman 1
+                self.ttl6.on() # Raman 2
                 delay(0.25*us) # AOM delay
                 delay(Raman_time)
-                self.urukul2_ch0.sw.off()
-                self.ttl6.off()
+                self.urukul2_ch0.sw.off() # Raman 1
+                self.ttl6.off() # Raman 2
+
 
 
 
@@ -700,8 +833,7 @@ class runScan(Fragment):
                 self.urukul0_ch2.sw.on() #935 on
                 self.urukul0_ch3.sw.on()
                 self.ttl5.on()
-
-
+                #self.ttl4.on()
 
                 # for simple detection using edge counter
                 # delay(50*us)
@@ -710,7 +842,6 @@ class runScan(Fragment):
                 self.ttl.gate_rising(det_time)
                     #self.pulseDetection(det_time)
                 #delay_mu(1)
-
 
                     # without edge counter
                     #detcounts_time = self.ttl.gate_rising(detTime)
@@ -727,11 +858,15 @@ class runScan(Fragment):
                 # delay(50*us)
                 # self.urukul0_ch2.set_att(30 * dB)
                 # self.urukul0_ch3.set_att(30 * dB)
+
+                #self.ttl4.off() # camera
                 self.ttl5.off()
                 self.urukul0_ch3.sw.off()
                 self.urukul0_ch2.sw.off() #935 on
                 #self.urukul0_ch1.sw.off()
                 #self.urukul1_ch3.sw.off()
+
+                #delay(50 * us)  # for debugging
 
             #delay(50 * us)
 
@@ -759,6 +894,8 @@ class runScan(Fragment):
             #self.ttl.set_config(count_rising=True, count_falling=False, send_count_event=False, reset_to_zero=True)
             #self.histpoints[i]=x
             delay(10*us)
+            delay(0.5*ms)
+
 
             #i=i+1
 

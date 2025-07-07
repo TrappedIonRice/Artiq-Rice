@@ -15,6 +15,7 @@ import scipy.special as sp
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 from scipy.special import genlaguerre
+import math
 import sympy
 from sympy import cos, Eq, solve, nsolve, Symbol, symbols
 sympy.init_printing()
@@ -37,13 +38,13 @@ def Carrierflop (t,Omega,eta,phi0,nbar,ph_N,rescale,offset):
 def RSBflop (t,Omega,eta,phi0,nbar,ph_N, rescale, offset, gamma):
     # assumes pi flip
     # evol=((nbar**0)/((nbar+1)**(0+1)))*np.cos(eta*Omega*t*np.sqrt(1)/2+phi0)**2
-    evol=rescale*np.exp(-gamma*t)*np.sum([((nbar**(n-1))/((nbar+1)**(n)))*np.cos(np.exp(-eta**2/2)*np.sqrt(np.math.factorial(n-1)/np.math.factorial(n))*genlaguerre(n-1, 1)(eta**2)*eta*Omega*t/2+phi0)**2 for n in range(1,ph_N)],0) + offset
+    evol=rescale*np.exp(-gamma*t)*np.sum([((nbar**(n-1))/((nbar+1)**(n)))*np.cos(np.exp(-eta**2/2)*np.sqrt(math.factorial(n-1)/math.factorial(n))*genlaguerre(n-1, 1)(eta**2)*eta*Omega*t/2+phi0)**2 for n in range(1,ph_N)],0) + offset
     return evol
 
 def BSBflop (t,Omega,eta,phi0,nbar,ph_N, rescale, offset, gamma):
     # assumes pi flip
     # evol=((nbar**0)/((nbar+1)**(0+1)))*np.cos(eta*Omega*t*np.sqrt(1)/2+phi0)**2
-    evol=rescale*np.exp(-gamma*t)*np.sum([((nbar**(n))/((nbar+1)**(n+1)))*np.cos(np.exp(-eta**2/2)*np.sqrt(np.math.factorial(n)/np.math.factorial(n+1))*genlaguerre(n, 1)(eta**2)*eta*Omega*t/2+phi0)**2 for n in range(0,ph_N)],0) + offset
+    evol=rescale*np.exp(-gamma*t)*np.sum([((nbar**(n))/((nbar+1)**(n+1)))*np.cos(np.exp(-eta**2/2)*np.sqrt(math.factorial(n)/math.factorial(n+1))*genlaguerre(n, 1)(eta**2)*eta*Omega*t/2+phi0)**2 for n in range(0,ph_N)],0) + offset
     return evol
 
 def linearfit(t,a,b):
@@ -55,10 +56,10 @@ def sinusoid_decay(t,a,omega,gamma,phi0,b):
 plt.close('all')
 
 #initial values for fit
-Omega0=2*np.pi*0.13067*10**6; #MHz
+Omega0=2*np.pi*0.22281*10**6; #MHz
 eta=np.sqrt(3/2/2 *3/0.9)*0.1;
 eta= np.sqrt(6.626*10**-34 *(2/355*10**9)**2 /(2* 171*1.6*10**-27 * 1.7*10**6))*np.abs(np.cos(0))
-eta=0.13
+eta=0.076
 print(eta)
 #/np.sqrt(2)
 #eta= 0.039/np.sqrt(2)
@@ -68,11 +69,11 @@ tarr=np.linspace(0,40,200)*10**(-6); # mu*s
 phi0RSB=np.pi;
 phi0carrier=np.pi/2;
 phi0BSB=np.pi/2;
-nbar=4
+nbar=0.2
 ph_N=100;
 rescale=1
-offset=0.00
-gamma=1000*0
+offset=0
+gamma=0
 
 heatingrate, n_init= 1000, 1000
 
@@ -94,8 +95,8 @@ BSBfloparr=BSBflop(tarr, Omega0, eta,phi0BSB,nbar,ph_N, rescale, offset, gamma)*
 def carrierfitmdl(Omega0,eta,phi0carrier, nbar,ph_N,rescale,offset):
     carriermdl = Model(Carrierflop)
     carrierparams = Parameters()
-    carrierparams.add('Omega', value=Omega0, min=0.05 * 2 * np.pi * 10 ** 6, max=0.5 * 2 * np.pi * 10 ** 6, vary= False)
-    carrierparams.add('eta', value=eta, min=0.01, max=0.2, vary=False)
+    carrierparams.add('Omega', value=Omega0, min=0.18 * 2 * np.pi * 10 ** 6, max=0.26 * 2 * np.pi * 10 ** 6, vary= True)
+    carrierparams.add('eta', value=eta, min=0.01, max=0.2, vary=True)
     carrierparams.add('phi0', value=phi0carrier, min=0, max=2*np.pi, vary=True)
     carrierparams.add('nbar', value=nbar, min=0, max=60)
     carrierparams.add('ph_N', value=ph_N,  vary=False)
@@ -105,13 +106,13 @@ def carrierfitmdl(Omega0,eta,phi0carrier, nbar,ph_N,rescale,offset):
 def RSBfitmdl(Omega0,eta,phi0, nbar,ph_N,rescale,offset, gamma):
     RSBmdl = Model(RSBflop)
     RSBparams = Parameters()
-    RSBparams.add('Omega', value=Omega0, min=0.05 * 2 * np.pi * 10 ** 6, max=0.4* 2 * np.pi * 10 ** 6, vary=True)
-    RSBparams.add('eta', value=eta, min=0.03, max=0.15, vary=False)
+    RSBparams.add('Omega', value=Omega0, min=0.15 * 2 * np.pi * 10 ** 6, max=0.25 * 2 * np.pi * 10 ** 6, vary=False)
+    RSBparams.add('eta', value=eta, min=0.03, max=0.11, vary=True)
     RSBparams.add('phi0', value=phi0, min=0, max=2*np.pi)
     RSBparams.add('nbar', value=nbar, min=0, max=10)
     RSBparams.add('ph_N', value=ph_N,  vary=False)
-    RSBparams.add('rescale', value=rescale, min=0.01, max=2, vary=False)
-    RSBparams.add('offset', value=offset, min=-0.0, max=0.5, vary=False)
+    RSBparams.add('rescale', value=rescale, min=0.01, max=2, vary=True)
+    RSBparams.add('offset', value=offset, min=-0.0, max=0.5, vary=True)
     RSBparams.add('gamma', value=gamma, min=0, max=500, vary=True)
     return RSBmdl, RSBparams
 
@@ -177,7 +178,7 @@ for i,rid in enumerate(lst_rids):
         key_name_y = "ndscan.rid_" + str(rid) + ".points.channel_counts"  # key name for result parameter points
         key_name_err = "ndscan.rid_" + str(rid) + ".points.channel_res_err"  # key name for error parameter points
         #print(dict_datasets)
-        cutoff=35
+        cutoff=-1
         xdata_vals_1 = np.array(list(dict_datasets[key_name_x]))[:cutoff]
         # for i in range(len(x_vals_1)):
         #     x_vals_1[i]=x_vals_1[i]*10**6
@@ -229,12 +230,14 @@ for i,rid in enumerate(lst_rids):
     phononerr_data = np.array([0.91, 1.63 , 1.92, 2.37])
     waittime = np.array([0,1,2,3]) * 10 ** -3
 
-    # 2024/11/8, OC1 2MHz
+    # 2024/11/7,8, OC1 2MHz
+    # rids: 68438 68440 68448 68442 68450 68444 ( exlcuded 68446)
     phonondata = np.array([0.84,1.47,1.61,2.22,2.52, 3.06])
     phononerr_data = np.array([0.14,0.22,0.3,0.33,0.40, 0.49])
     waittime = np.array([0, 1, 1.5, 2, 2.5, 3]) * 10 ** -3
 
-    # 2024/11/8, IC1 1.5MHz
+    # 2024/11/7,8, IC1 1.5MHz
+    #rids: 68289 68293 68297 68295 6301 68291
     phonondata = np.array([1.71, 2.87, 3.11, 4.00, 5.50, 6.10])
     phononerr_data = np.array([0.27, 0.45, 0.60, 0.60, 1.11, 1.00])
     waittime = np.array([0, 0.25, 0.35,0.5,  0.75, 1]) * 10 ** -3
@@ -263,6 +266,7 @@ for i,rid in enumerate(lst_rids):
     phonondata = np.array([2.32, 5.02, 9.6, 3.08, 5.91])
     phononerr_data = np.array([0.33, 1.21, 1.6, 0.46, 1.01])
     waittime = np.array([0, 0.5, 1, 0.25, 0.75]) * 10 ** -3
+
 
 
 
@@ -326,6 +330,62 @@ for i,rid in enumerate(lst_rids):
     phononerr_data = np.array([0.93, 2.33, 1.68, 2.28,2.34])
     waittime = np.array([0, 1, 2, 3,4]) * 10 ** -3
 
+    # 2025/6/10 RSB OC1 GEN3
+    # rids:86869 86871 86873 86877 86879 86881 86883 86885
+    # phonondata = np.array([0.36,  0.29,  0.47 , 0.5,  0.56,   0.7,  1.27,  4.86])
+    # phononerr_data = np.array([0.09,  0.07,  0.07,  0.07,  0.08,  0.11,  0.27,  1.3])
+    # waittime = np.array([0 ,    1 ,    2.5 ,  5  ,   10 ,   20 ,   50,    100]) * 10 ** -3
+    # excluding last point which is an outlier
+    # rids:86869 86871 86873 86877 86879 86881 86883
+    phonondata = np.array([0.36,  0.29,  0.47,  0.5,  0.56,   0.7,  1.27])
+    phononerr_data = np.array([0.09,  0.07,  0.07,  0.07 , 0.08,  0.11,  0.27])
+    waittime = np.array([0, 1, 2.5, 5, 10, 20, 50]) * 10 ** -3
+
+    # 2025/6/10 RSB IC1 GEN3
+    #rids: 86927 86939 86941 86943 86945 86947
+    phonondata = np.array([0.32 , 0.52,  0.89,  1.06,  1.74,  6.40])
+    phononerr_data = np.array([0.06 , 0.09  ,0.14,  0.15,  0.27,  1.22])
+    waittime = np.array([0   ,  1 ,    5  ,   10 ,   20 ,   100]) * 10 ** -3
+
+
+    # 2025/6/11 RSB OC1 GEN3
+    #rids: 87211 87213 87215 87217 87219 87221
+    phonondata = np.array([0.48,0.51,0.55, 0.46, 0.66 , 0.93])
+    phononerr_data = np.array([0.11, 0.12, 0.12, 0.1, 0.12, 0.16])
+    waittime = np.array([0,2,5, 10, 20, 50]) * 10 ** -3
+
+
+    # 2025/06/12 RSB IC1 GEN3 1
+    #rids: 87833 87817 87819 87827 87831
+    phonondata = np.array([0.22,0.37, 0.78,1.06, 1.08])
+    phononerr_data = np.array([0.11,0.12, 0.14, 0.26, 0.22])
+    waittime = np.array([0, 2, 5, 10, 12]) * 10 ** -3
+
+    # 2025/06/12 RSB OC1 GEN3 1
+    # rids: 87932 87934 87936 87942
+    phonondata = np.array([0.17, 0.56, 0.4, 1.05])
+    phononerr_data = np.array([0.18, 0.20, 0.15, 0.34])
+    waittime = np.array([0,10,20,50]) * 10 ** -3
+
+    # 2025/06/12 RSB IC1 GEN3 3 high power
+    # rids:87990 87992 87994 87996 87998, 88000
+    phonondata = np.array([0.14, 0.56,0.88, 1.21, 2.49, 1.97])
+    phononerr_data = np.array([0.09, 0.16, 0.32, 0.25, 0.51, 0.53])
+    waittime = np.array([0,2,5,7,10,12]) * 10 ** -3
+
+    # 2025/06/24 RSB OC1 GEN3 3 low power
+    # rids:
+    phonondata = np.array([0.39,  0.44,  0.74,  1.33,  1.23])
+    phononerr_data = np.array([0.12, 0.12,   0.16,  0.30,  0.26])
+    waittime = np.array([0,2, 5, 10, 7]) * 10 ** -3
+
+    # # 2025/06/25 RSB OC1 GEN3 3 low power
+    # # rids:
+    # phonondata = np.array([0.25,  0.37,  0.66 , 1.04,  1.93])
+    # phononerr_data = np.array([0.10,  0.12,  0.15,  0.25,  0.39])
+    # waittime = np.array([0, 5, 10, 20,50]) * 10 ** -3
+
+
     # plt.figure(2, figsize=(10,8))
     # plt.plot(tarr,RSBfloparr, 'r', marker='o', label='RSB')
     # plt.plot(tarr,Carrierfloparr, 'black',marker='o', label='Carrier')
@@ -343,14 +403,14 @@ for i,rid in enumerate(lst_rids):
     # carrierparams.add('rescale', value=rescale, min=0.5, max=2)
     # carrierparams.add('offset', value=offset, min=-0.1, max=0.5)
 
-    fitchoice=3
+    #fitchoice=3
 
-    #fitchoice=int(input("Enter fit choice (0- carrier, 1 - RSB, 2- BSB, 3- heating rate) : "))
+    fitchoice=int(input("Enter fit choice (0- carrier, 1 - RSB, 2- BSB, 3- heating rate) : "))
 
     if fitchoice==0:
 
         carriermdl,carrierparams=carrierfitmdl(Omega0,eta,phi0carrier, nbar,ph_N,rescale,offset)
-        carrierres=carriermdl.fit(ydata_vals_1,carrierparams,t=xdata_vals_1)
+        carrierres=carriermdl.fit(ydata_vals_1,carrierparams,t=xdata_vals_1, weights= 1/(errydata_vals_1))
         #carrierres=carriermdl.fit(Carrierfloparr,carrierparams,t=tarr)
 
         Omegafit,etafit, phi0fit, nbarfit, rescalefit, offsetfit=carrierres.params['Omega'].value, carrierres.params['eta'].value,\
@@ -368,7 +428,7 @@ for i,rid in enumerate(lst_rids):
 
     elif fitchoice==1:
         RSBmdl, RSBparams = RSBfitmdl(Omega0, eta, phi0RSB, nbar, ph_N, rescale, offset, gamma)
-        RSBres = RSBmdl.fit(ydata_vals_1, RSBparams, t=xdata_vals_1)
+        RSBres = RSBmdl.fit(ydata_vals_1, RSBparams, t=xdata_vals_1, weights= 1/(errydata_vals_1))
         Omegafit, etafit, phi0fit, nbarfit, rescalefit, offsetfit, gammafit = RSBres.params['Omega'].value, RSBres.params[
             'eta'].value, \
                                                                     RSBres.params['phi0'].value, RSBres.params[
@@ -399,7 +459,7 @@ for i,rid in enumerate(lst_rids):
 
     elif fitchoice==2:
         BSBmdl, BSBparams = BSBfitmdl(Omega0, eta, phi0BSB, nbar, ph_N, rescale, offset, gamma)
-        BSBres = BSBmdl.fit(ydata_vals_1, BSBparams, t=xdata_vals_1)
+        BSBres = BSBmdl.fit(ydata_vals_1, BSBparams, t=xdata_vals_1, weights= 1/(errydata_vals_1))
         Omegafit, etafit, phi0fit, nbarfit, rescalefit, offsetfit, gammafit = BSBres.params['Omega'].value, BSBres.params[
             'eta'].value, \
                                                                     BSBres.params['phi0'].value, BSBres.params[
@@ -432,7 +492,7 @@ for i,rid in enumerate(lst_rids):
     elif fitchoice ==3:
 
         heatingratemdl,heatingratemdlparams = heatingrateFitmdl(heatingrate, n_init)
-        heatingrate_res=heatingratemdl.fit(phonondata,heatingratemdlparams,t=waittime)
+        heatingrate_res=heatingratemdl.fit(phonondata,heatingratemdlparams,t=waittime, weights= 1/(phononerr_data))
 
         heatingrate, heatingrate_err, n_init, n_init_err= heatingrate_res.params['a'].value,\
                                                           heatingrate_res.params['a'].stderr, \
@@ -466,25 +526,25 @@ for i,rid in enumerate(lst_rids):
        # plt.figure()
         #i=0.25
         color_choice=cmap(i/4.0)
-        plt.errorbar(xdata_vals_1 * 10 ** 6, ydata_vals_1, yerr=errydata_vals_1, fmt="o-", color=color_choice,markersize= 9, label='Carrier flop, rid: {0:d}'.format(rid))
+        plt.errorbar(xdata_vals_1 * 10 ** 6, ydata_vals_1, yerr=errydata_vals_1, fmt="o-", color=color_choice,markersize= 9, label=r'Carrier flop, rid: {0:d}'.format(rid))
        # plt.plot(xdata_vals_1 * 10 ** 3, sinusoid_decayFit_res.best_fit, color=color_choice, linestyle='--', linewidth=3) # only plotting fit, no label
         plt.plot(xdata_vals_1 * 10 ** 6, carrierres.best_fit, color=color_choice, linestyle='--',linewidth=3,
-                label='Carrier fit, $\Omega$ = $2\pi*${0:.2f} kHz, $\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err))
+                label=r'Carrier fit, $\Omega$ = $2\pi*${0:.2f} kHz, $\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err))
                 # label='$\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err))
     elif fitchoice==1:
-        plt.errorbar(xdata_vals_1*10**6, ydata_vals_1,yerr=errydata_vals_1, fmt="o", color='red',  label='RSB, rid: {0:d}'.format(rid))
+        plt.errorbar(xdata_vals_1*10**6, ydata_vals_1,yerr=errydata_vals_1, fmt="o", color='red',  label=r'RSB, rid: {0:d}'.format(rid))
         plt.plot(xdata_vals_1*10**6,RSBres.best_fit, 'red', linestyle='--',
-                 label='RSB fit, $\Omega$ = $2\pi*${0:.2f} kHz, \n $\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}, \n $\gamma$= {3:.3f} kHz'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err, gammafit/(2*np.pi * 10 ** 3)))
+                 label=r'RSB fit, $\Omega$ = $2\pi*${0:.2f} kHz, \n $\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}, \n $\gamma$= {3:.3f} kHz'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err, gammafit/(2*np.pi * 10 ** 3)))
     elif fitchoice==2:
-        plt.errorbar(xdata_vals_1*10**6, ydata_vals_1, yerr=errydata_vals_1, fmt="o", color='blue',  label='BSB fit, rid: {0:d}'.format(rid))
+        plt.errorbar(xdata_vals_1*10**6, ydata_vals_1, yerr=errydata_vals_1, fmt="o", color='blue',  label=r'BSB fit, rid: {0:d}'.format(rid))
         plt.plot(xdata_vals_1*10**6,BSBres.best_fit, 'blue', linestyle='--',
-            label = 'RSB fit, $\Omega$ = $2\pi*${0:.2f} kHz,\n $\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}, \n $\gamma$= {3:.3f} kHz'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err, gammafit/(2*np.pi * 10 ** 3)) )
+            label = r'RSB fit, $\Omega$ = $2\pi*${0:.2f} kHz,\n $\overline{{n}}$= {1:.2f} $\pm$ {2:.2f}, \n $\gamma$= {3:.3f} kHz'.format(Omegafit / (2 * np.pi * 10 ** 3), nbarfit, nbarfit_err, gammafit/(2*np.pi * 10 ** 3)) )
     elif fitchoice==3:
-        plt.errorbar(waittime * 10 ** 3, phonondata, yerr=phononerr_data, fmt="o", color='C2', label='$\overline{{n}}$')
+        plt.errorbar(waittime * 10 ** 3, phonondata, yerr=phononerr_data, fmt="o", color='C2', label=r'$\overline{{n}}$')
         plt.plot(waittime * 10 ** 3, heatingrate_res.best_fit, 'C2', linestyle='-',\
-                 label='$ d\overline{{n}}/dt= {heatingrate:0.3f} \pm {heatingrate_err:0.3f}$ quanta/s '.format(heatingrate=heatingrate, heatingrate_err= heatingrate_err)\
+                 label=r'$ d\overline{{n}}/dt= {heatingrate:0.3f} \pm {heatingrate_err:0.3f}$ quanta/s '.format(heatingrate=heatingrate, heatingrate_err= heatingrate_err)\
                        +'\n'\
-                       + ' $ \overline{{n}}_0= {n_init:0.3f} \pm {niniterr:0.3f}$ quanta'.format( n_init=n_init, niniterr=n_init_err))
+                       + r' $ \overline{{n}}_0= {n_init:0.3f} \pm {niniterr:0.3f}$ quanta'.format( n_init=n_init, niniterr=n_init_err))
 
 
 

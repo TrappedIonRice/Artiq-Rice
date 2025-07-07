@@ -8,8 +8,8 @@ class RFControl_Arduino(EnvExperiment):
     def build(self):
         # Please make sure to enter the right units.
         #self.setattr_device("core")
-        self.lowerlim=0.000
-        self.upperlim = 5.000
+        self.lowerlim=-1.000
+        self.upperlim = 1.000
         self.dataReprate= 100
         self.setattr_argument("ramp_rate", NumberValue(default=0.01,ndecimals=6, max=0.01, min=0.0001))
         self.setattr_argument("target_amplitude", NumberValue(default=0, min=self.lowerlim, max=self.upperlim, ndecimals=6))

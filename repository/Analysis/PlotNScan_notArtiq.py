@@ -45,7 +45,8 @@ with plt.ioff():  # for scrollwheel zoom functionality
 
 plt.clf()
 colorlist=plt.cm.plasma(np.linspace(0.0,1.0,len(lst_rids)))
-
+#colorlist=["r","b"]
+#labellist=["Doppler","SBC"]
 
 for ii, rid in enumerate(lst_rids):
     dict_test = find_results("", rid=int(rid),
@@ -64,15 +65,20 @@ for ii, rid in enumerate(lst_rids):
     key_name_y = "ndscan.rid_" + str(rid) + ".points.channel_counts"  # key name for result parameter points
     key_name_err = "ndscan.rid_" + str(rid) + ".points.channel_res_err"  # key name for error parameter points
     #print(dict_datasets)
-    x_vals_1 = list(dict_datasets[key_name_x])
+    x_vals_1 = np.array(list(dict_datasets[key_name_x]))
     # for i in range(len(x_vals_1)):
     #     x_vals_1[i]=x_vals_1[i]*10**6
-    y_vals_1 = list(dict_datasets[key_name_y])
-    err_vals_1 = list(dict_datasets[key_name_err])
+    y_vals_1 = np.array(list(dict_datasets[key_name_y]))
+    err_vals_1 = np.array(list(dict_datasets[key_name_err]))
     # x_vals_1 = np.array(x_vals_1) * 1e-3
-    plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, fmt="-o")
-    plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="{0:d}".format(rid))
+    plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, fmt="-o", label="{0:d}".format(rid))
+   # plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, xerr= None, fmt="-o", label=labellist[ii])
+    #print(x_vals_1)
+    #plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="{0:d}".format(rid))
     # plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="Data")
+
+    #plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label=labellist[ii])
+
 
 
     if not (CHOOSE_FIT=="None"):
@@ -119,10 +125,14 @@ for ii, rid in enumerate(lst_rids):
 #disconnect_zoom = zoom_factory(axis)
 #pan_handler = panhandler(figure)
 #plt.xlabel('Time (μs)')  # Indicate that the x axis is in microseconds
+
 plt.xlabel(xlabel_axis0)
+#plt.xlabel('Raman time ($\mu$s)')
 #plt.xlabel('$\mu$s')
-plt.ylabel('counts')
-plt.ticklabel_format(style='sci', axis='x', scilimits=(-6, -6))
+plt.ylabel('Counts')
+#plt.ylabel('Population') # Only after data is thresholded
+plt.ticklabel_format(style='sci', axis='x', scilimits=(-6, -6)) # constrains the order of magnitude to 6. comment out if data needs to be cleanly rescaled
+#plt.xlim([0,100])
 plt.legend()
 plt.grid(visible=True)
 #data = np.array([[x_vals_1, y_vals_1, err_vals_1], [x_fit, y_fit]])

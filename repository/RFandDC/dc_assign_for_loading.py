@@ -47,6 +47,7 @@ class Loading(EnvExperiment):
         self.midcap_avg=self.get_dataset("Loading.midcap_avg")
         self.all_y = self.get_dataset("Loading.all_y")
         self.all_z = self.get_dataset("Loading.all_z")
+        self.endcapX=self.get_dataset("Loading.endcapX")
         self.twist = self.get_dataset("Loading.Twist")
 
     def run(self):
@@ -55,6 +56,7 @@ class Loading(EnvExperiment):
         self.set_dataset("DC.MidcapAvg", self.midcap_avg, broadcast=True, archive=True, persist=True)
         self.set_dataset("DC.AllY", self.all_y, broadcast=True, archive=True, persist=True)
         self.set_dataset("DC.AllZ", self.all_z, broadcast=True, archive=True, persist=True)
+        self.set_dataset("DC.EndcapX", self.endcapX, broadcast=True, archive=True, persist=True)
         self.set_dataset("DC.Twist", self.twist, broadcast=True, archive=True, persist=True)
 
 
