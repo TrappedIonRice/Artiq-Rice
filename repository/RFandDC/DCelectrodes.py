@@ -44,6 +44,7 @@ class DC_Control(EnvExperiment):
         # index=abstract DAC channel/ Trap electrode no., value= real Zotino DAC channel/DC, eg. pos 0 val 2 means DC0 (RF electrode) of trap will map with value of DACpin 2
         #self.DCElectrodeMapping = [0,1,2,3,5,7,4,6,8,9,10,11] # 2023/11/1  # change config here
         self.DCElectrodeMapping = [0,1,2,4,3,7,8,6,5,10,9,11] # 2025/5/28 refer GEN3 assignment abstraction
+        #self.DCElectrodeMapping = [30,1,2,4,3,7,8,6,5,10,9,31] # 2025/7/14 refer GEN3 assignment abstraction, for debugging
 
         # self.DCElectrodeMapping = [0,1,2,3,4,5,6,7,8,9,10,11]   #2023/10/20
         self.set_dataset("DC.ElectrodeMapping", self.DCElectrodeMapping, broadcast=True, archive=True, persist=True)
@@ -99,12 +100,14 @@ class DC_Control(EnvExperiment):
 
         # executing all voltage combinations
         for Vcombo in self.VComboList.keys():
+            #print(Vcombo)
             self.VComboList[Vcombo][1](self.VComboList[Vcombo][0])
             if self.valueBoundsCheck(Vcombo):
                 break
         self.set_dataset("DC.ElectrodeValues", self.DCElectrodeValues, broadcast=True, archive=True, persist=True)
         print("Real Electrode Values: "+str(self.DCElectrodeValues))
-        abstractval=[self.DCElectrodeValues[self.DCElectrodeMapping.index(i)] for i in range(12)]
+        abstractval=[self.DCElectrodeValues[self.DCElectrodeMapping.index(i)] for i in range(12)] # regular case up till 2025/7/14
+        #abstractval=[self.DCElectrodeValues[self.DCElectrodeMapping.index(i)] for i in [30,1,2,3,4,5,6,7,8,9,10,31] ] # debugging except ion using DACs 30 and 31, 2025/7/14
         print("Abstract Electrode Values: "+str(abstractval))
 
 
@@ -114,7 +117,10 @@ class DC_Control(EnvExperiment):
         Checks if all the DC electrode biases are within the bounds of the DAC or not and accordingly update
         """
         flag=0
-        for i in range(12):
+        DAClist=range(12)# regular case up till 2025/7/14
+       # DAClist=[30,1,2,3,4,5,6,7,8,9,10,31] # debugging except ion using DACs 30 and 31, 2025/7/14
+        #print(self.DCElectrodeValues)
+        for i in DAClist:
             elecvValue=self.DCElectrodeValues[self.DCElectrodeMapping[i]]
             if elecvValue > self.DCbounds[1]:
                 print("Abstract DC {0:d}: {1:f} > {2:f}V ".format(i,elecvValue,self.DCbounds[1])) # checks electrode number acc. to schematic

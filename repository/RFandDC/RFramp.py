@@ -8,12 +8,14 @@ class RFControl_Arduino(EnvExperiment):
     def build(self):
         # Please make sure to enter the right units.
         #self.setattr_device("core")
-        self.lowerlim=-1.000
-        self.upperlim = 1.000
+        self.lowerlim=-0.3 # 0.001V before
+        self.upperlim = 9.9 # 9.9V before
         self.dataReprate= 100
-        self.setattr_argument("ramp_rate", NumberValue(default=0.01,ndecimals=6, max=0.01, min=0.0001))
+        self.setattr_argument("ramp_rate", NumberValue(default=0.01,ndecimals=6, max=0.1, min=0.0001)) # default, 0.01V default ramp
+        #self.setattr_argument("ramp_rate", NumberValue(default=0.005,ndecimals=6, max=0.05, min=-0.05)) # only beat note lock for RF
+
         self.setattr_argument("target_amplitude", NumberValue(default=0, min=self.lowerlim, max=self.upperlim, ndecimals=6))
-        self.setattr_argument("time_step", NumberValue(default=100 * ms, unit="ms", min=0*ms,ndecimals=6))
+        self.setattr_argument("time_step", NumberValue(default=100 * ms, unit="ms", min=0*ms, ndecimals=6))
         self.setattr_argument("num_points", NumberValue(default = 1000))
         self.amplitude=self.get_dataset("RFamp_Arduino")
         #self.setattr_device("scheduler")

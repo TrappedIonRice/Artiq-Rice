@@ -43,7 +43,7 @@ class AOMControl(EnvExperiment):
         self.setattr_argument("u0ch3_Detection_or_Tickler", BooleanValue(default=False), tooltip="Detection or Tickler", group="ch3")
         self.setattr_argument("u1ch1_OP", BooleanValue(default=False), tooltip="OP")
         self.setattr_argument("u1ch2_MW", BooleanValue(default=False), tooltip="MW")
-        #self.setattr_argument("u1ch3_355switch", BooleanValue(default=False), tooltip="355 Switch")
+        self.setattr_argument("u1ch3_369_protection", BooleanValue(default=False), tooltip="369 Protection")
         self.setattr_argument("u2ch0_355_Raman1", BooleanValue(default=False), tooltip="355_Raman1")
         #self.setattr_argument("u2ch1_355_Raman2", BooleanValue(default=False), tooltip="355_Raman2")
         self.setattr_argument("ttl6_355_Raman2", BooleanValue(default=False), tooltip="355_Raman2")
@@ -90,9 +90,9 @@ class AOMControl(EnvExperiment):
         self.TicklingFrequency = self.get_dataset("Tickling.Frequency")
         self.TicklingAtt=self.get_dataset("Tickling.Attenuation")
 
-        # self.Switch355Amp = self.get_dataset("355_switch.Amp")
-        # self.Switch355Frequency = self.get_dataset("355_switch.Frequency")
-        # self.Switch355Att = self.get_dataset("355_switch.Attenuation")
+        self.Protection369Amp = self.get_dataset("369_protection.Amp")
+        self.Protection369Frequency = self.get_dataset("369_protection.Frequency")
+        self.Protection369Att = self.get_dataset("369_protection.Attenuation")
 
         # self.RrLock355Amp = self.get_dataset("355_RR_lock.Amp")
         # self.RrLock355Frequency = self.get_dataset("355_RR_lock.Frequency")
@@ -196,14 +196,14 @@ class AOMControl(EnvExperiment):
             self.urukul1_ch2.set_att(30 * dB)
             self.urukul1_ch2.sw.off()
 
-        # self.urukul1_ch3.init()
-        # self.urukul1_ch3.set(frequency=self.Switch355Frequency, amplitude=self.Switch355Amp)
-        # self.urukul1_ch3.set_att(self.Switch355Att * dB)
-        # if self.u1ch3_355switch == True:
-        #     self.urukul1_ch3.sw.on()
-        # else:
-        #     self.urukul1_ch3.set_att(30 * dB)
-        #     self.urukul1_ch3.sw.off()
+        self.urukul1_ch3.init()
+        self.urukul1_ch3.set(frequency=self.Protection369Frequency, amplitude=self.Protection369Amp)
+        self.urukul1_ch3.set_att(self.Protection369Att * dB)
+        if self.u1ch3_369_protection == True:
+            self.urukul1_ch3.sw.on()
+        else:
+            self.urukul1_ch3.set_att(30 * dB)
+            self.urukul1_ch3.sw.off()
 
 
         self.urukul2_ch0.init()

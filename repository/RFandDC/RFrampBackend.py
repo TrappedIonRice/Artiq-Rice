@@ -9,6 +9,7 @@ if __name__=="__main__":
     filename=r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice\dataset_db.pyon"
     RFkeyword="RFamp_Arduino"
     V=0.2
+
     while(True):
         try:
 
