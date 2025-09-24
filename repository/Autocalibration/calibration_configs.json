@@ -1,0 +1,32 @@
+{
+  "calib_config":{
+    "allZScan_config": {
+      "Frequency355_Raman1": 192532072.6221,
+      "Amplitude355_Raman1": 0.7,
+      "RamanTime": 1.5e-6,
+      "prepampOP": 0.8,
+      "preptimeOP": 5e-5,
+      "TimeMW": 1e-8,
+      "DetTime369": 0.5e-3,
+      "SBCcheck": false
+    },
+    "RSBch1_LP_Freq_Scan_config": {
+      "Amplitude355_Raman1": 0.05,
+      "RamanTime": 0.3e-3,
+      "prepampOP": 0.8,
+      "preptimeOP": 5e-5,
+      "TimeMW": 0.118e-3,
+      "DetTime369": 0.5e-3,
+      "SBCcheck": true
+    },
+    "RSBch1_LP_pi_Scan_config": {
+      "Frequency355_Raman1": 189624133.00,
+      "Amplitude355_Raman1": 0.05,
+      "prepampOP": 0.8,
+      "preptimeOP": 5e-5,
+      "TimeMW": 0.118e-3,
+      "DetTime369": 0.5e-3,
+      "SBCcheck": true
+    }
+  }
+}

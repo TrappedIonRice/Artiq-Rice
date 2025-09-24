@@ -113,7 +113,7 @@ class SearchFitWidget(QtWidgets.QWidget):
 
         # assign updated_path to default_path in the long run.
 
-        self.num_rids = 30  # list out last R rids in file list box
+        self.num_rids = 10  # list out last R rids in file list box
         self.filterScanName = 'executeScan'
         # Defining dictionary to store all the relevant scan datasets
         self.dataDict = {}
