@@ -52,7 +52,7 @@ class FitObject:
         for i in range(self.num_params):
             self.fitparams.add(self.params2Dlist[i][1],
                                value=self.params2Dlist[i][2],
-                               min= self.params2Dlist[i][4],
+                               min=self.params2Dlist[i][4],
                                max=self.params2Dlist[i][5],
                                vary=self.params2Dlist[i][0])
         self.fitres=self.mdl.fit(yvals, self.fitparams, x=xvals)
@@ -148,10 +148,10 @@ class gaussianFit(FitObject):
         super(gaussianFit, self).__init__()
         self.num_params = 4
         self.params2Dlist= [
-                            [True,"A",1,0.1, -100,100],
-                            [True,"sigma",0.1,0.1, -100,100],
-                            [True,"x0", 0, 0.1, -100,100],
-                            [True,"B",0,0.1, -100,100]
+                            [True,"A",1,0.1, -1,1],
+                            [True,"sigma",0.1,0.1, -1,1],
+                            [True,"x0", 0, 0.1, -1,1],
+                            [True,"B",0,0.1, -1,1]
                             ]
         self.description ="A*exp(-(x-x0)^2/(2*sigma^2))+B"
 
