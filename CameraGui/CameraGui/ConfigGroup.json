@@ -1,0 +1,105 @@
+{
+  "__Comment__" : {
+    "Template": {
+      "TriggerMode": " ",
+      "ReadMode": " ",
+      "AcquisitionMode": " ",
+      "ExposureTime": 100,
+      "CycleTime": 400,
+      "EMCCDGain": 0,
+      "TotalShots": 0,
+      "Accumulation": 0,
+      "UseHighCapacity": false,
+      "SaveData": false,
+      "UseROI": false
+    },
+    "TriggerModeCode": {
+      "Internal": 0,
+      "External": 1,
+      "External Start": 6,
+      "External Exposure": 7,
+      "Software Trigger": 10,
+      "External Charge Shifting": 9
+    },
+    "ReadModeCode": {
+      "Full Vertical Binning": 0,
+      "Multi-Track": 1,
+      "Random-Track": 2,
+      "Single-Track": 3,
+      "Image": 4,
+      "Common Usage": "Image"
+    },
+    "AcquisitionModeCode": {
+      "Single Scan": 1,
+      "Accumulate": 2,
+      "Kinetics": 3,
+      "Fast Kinetics": 4,
+      "Run till abort": 5
+    }
+  },
+
+  "Live": {
+    "TriggerMode": 0,
+    "ReadMode": 4,
+    "AcquisitionMode": 5,
+    "ExposureTime": 100,
+    "CycleTime": 400,
+    "EMCCDGain": 0,
+    "IonNumber": 6,
+    "Repetition": 1,
+    "UseHighCapacity": false,
+    "SaveData": false,
+    "UseROI": true,
+    "ROI": {
+      "H1": 1,
+      "H2": 100,
+      "V1": 1,
+      "V2": 100
+    }
+  },
+  "Detector": {
+    "TriggerMode": 0,
+    "ReadMode": 4,
+    "AcquisitionMode": 5,
+    "ExposureTime": 100,
+    "CycleTime": 400,
+    "IonNumber": 6,
+    "EMCCDGain": 0,
+    "Repetition": 1,
+    "UseHighCapacity": false,
+    "SaveData": false,
+    "UseROI": true,
+    "ROI": {
+      "H1": 1,
+      "H2": 100,
+      "V1": 1,
+      "V2": 100
+    }
+  },
+
+  "ExTrigger": {
+    "EMCCDGain": 0,
+    "UseHighCapacity": false,
+    "SaveData": true,
+    "AcquisitionMode": 5,
+    "ExposureTime": 100,
+
+    "ReadMode": 4,
+    "TriggerMode": 7,
+    "Repetition": 5,
+    "UseROI": true,
+    "ROI": {
+      "H1": 1,
+      "H2": 100,
+      "V1": 1,
+      "V2": 100
+    }
+  },
+  "Kinetic": {
+    "EMCCDGain": 0,
+    "UseHighCapacity": false,
+    "TriggerMode": 7,
+    "ReadMode": 4,
+    "AcquisitionMode": 5
+  }
+}
