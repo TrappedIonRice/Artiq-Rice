@@ -1,7 +1,7 @@
 {
   "calib_config":{
     "allZScan_config": {
-      "Frequency355_Raman1": 192532072.6221,
+      "Frequency355_Raman1": 192532052.142507,
       "Amplitude355_Raman1": 0.7,
       "RamanTime": 1.5e-6,
       "prepampOP": 0.8,

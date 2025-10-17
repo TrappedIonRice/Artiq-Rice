@@ -612,6 +612,9 @@ for i,rid in enumerate(lst_rids):
             phonondata = RR / (1 - RR)
             phononerr_data = R_err / (1 - RR) ** 2
             fitchoice = 3#int(input("Enter fit choice (0- carrier, 1 - RSB, 2- BSB, 3- heating rate) : "))
+            # print(waittime)
+            # print(phonondata)
+            # print( phononerr_data)
     else:
         fitchoice = int(input("Enter fit choice (0- carrier, 1 - RSB, 2- BSB, 3- heating rate) : "))
 

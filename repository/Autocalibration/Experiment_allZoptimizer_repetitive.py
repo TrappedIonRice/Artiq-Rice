@@ -27,8 +27,8 @@ NDSCAN WRAPPER TO USE SCHEDULER
 
 
 
-class ExperimentOptimizerSchedule(EnvExperiment):
-        ''' Experiment Optimizer Schedule'''
+class ExperimentOptimizerScheduleRepeat(EnvExperiment):
+        ''' Experiment Optimizer Schedule Repeat'''
         def build(self):
                 self.setattr_device("core")
                 self.setattr_device("scheduler")
@@ -126,9 +126,9 @@ class ExperimentOptimizerSchedule(EnvExperiment):
                 # self.wait_time=30
                 # self.max_wait_time=100
 
-                self.repetitions_rids=1#30*3
+                self.repetitions_rids=30*3
                 self.current_time= time.time() # machine time from eons
-                self.time_interval=0#2*60 # seconds
+                self.time_interval=30 # seconds
                 self.time_arr=[ self.current_time+n*self.time_interval for n in range(self.repetitions_rids)]
 
                 pass

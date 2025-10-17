@@ -24,7 +24,9 @@ class PMTCounts(EnvExperiment):
         self.set_dataset("PMT_Counts.Y_vals", np.full(self.num_points, float(np.nan)), broadcast=True, archive=True)
         self.set_dataset("PMT_Counts.X_vals", np.full(self.num_points, float(np.nan)), broadcast=True, archive=True)
 
-        command = "${artiq_applet}plot_xy PMT_Counts.Y_vals --x PMT_Counts.X_vals --fit PMT_Counts.Y_vals"
+        command = "${artiq_applet}plot_xy PMT_Counts.Y_vals" \
+                  " --x PMT_Counts.X_vals" \
+                  " --fit PMT_Counts.Y_vals"
         self.ccb.issue("create_applet", "PMT Counts", command)
     # /\ /\ /\ /\ /\ /\ prepare /\ /\ /\ /\ /\ /\
 
@@ -72,11 +74,17 @@ class PMTCounts(EnvExperiment):
                 delay(self.Bin_Size * s)
                 self.count = self.ttl1_counter.fetch_count()
                 delay(10 * ms)
-                self.mutate_dataset("PMT_Counts.X_vals", self.num_points-i, time * self.Bin_Size)
-                self.mutate_dataset("PMT_Counts.Y_vals", self.num_points-i, self.count / self.Bin_Size)
+                # self.mutate_dataset("PMT_Counts.X_vals", self.num_points-i, time * self.Bin_Size)
+                # self.mutate_dataset("PMT_Counts.Y_vals", self.num_points-i, self.count / self.Bin_Size)
+                self.update_dataset(i,time)
                 delay(1 * ms)
                 time += 1
 
+    #@rpc(flags={"async"})
+    @kernel
+    def update_dataset(self,i,time):
+        self.mutate_dataset("PMT_Counts.X_vals", self.num_points - i, time * self.Bin_Size)
+        self.mutate_dataset("PMT_Counts.Y_vals", self.num_points - i, self.count / self.Bin_Size)
 
     def run(self):
 

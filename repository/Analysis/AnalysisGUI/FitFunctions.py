@@ -148,7 +148,7 @@ class gaussianFit(FitObject):
         super(gaussianFit, self).__init__()
         self.num_params = 4
         self.params2Dlist= [
-                            [True,"A",1,0.1, -1,1],
+                            [True,"A",1,0.1, -1,100],
                             [True,"sigma",0.1,0.1, -1,1],
                             [True,"x0", 0, 0.1, -1,1],
                             [True,"B",0,0.1, -1,1]
