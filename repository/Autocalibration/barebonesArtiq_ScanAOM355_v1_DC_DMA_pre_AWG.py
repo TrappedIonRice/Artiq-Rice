@@ -650,9 +650,14 @@ class allZScan(EnvExperiment):
 
     # \/ \/ \/ \/ \/ \/ run \/ \/ \/ \/ \/ \/
 
+    @rpc(flags={"async"})
+    def rid_termination(self): # required to teriminate any barebones scan script mid scan upon clicking terminate instances
+        rid= self.scheduler.rid
+        if self.scheduler.check_termination(rid):
+            self.scheduler.delete(rid)
+
+    # scan inside kernel
     def run(self):
-
-
         self.krun()
         # self.iter = 0
         # for scan_val in [-0.15,-0.1,-0.05,0.01]:
@@ -665,13 +670,6 @@ class allZScan(EnvExperiment):
         #     #print(self.iter)
         #     # collect counts per iteration
         #     # mutate dataset.
-
-    @rpc(flags={"async"})
-    def rid_termination(self): # required to teriminate any barebones scan script mid scan upon clicking terminate instances
-        rid= self.scheduler.rid
-        if self.scheduler.check_termination(rid):
-            self.scheduler.delete(rid)
-
     @kernel
     def krun(self):
         #if self.iter==0:
@@ -692,6 +690,34 @@ class allZScan(EnvExperiment):
             # print(self.iter)
             # collect counts per iteration
             # mutate dataset.
+
+    # 26/01/12 gt: scan outside kernel
+    # def run(self):
+    #     # 1. Get the scan sequence explicitly on the Host
+    #     # (This replaces the logic you found in the documentation)
+    #     scan_arr = self.allz_scan.sequence
+    #
+    #     # 2. Loop on the Host
+    #     # enumerate provides 'i' (iteration index) and 'scan_val' (the value)
+    #     for i, scan_val in enumerate(scan_arr):
+    #         # 3. Call Kernel for ONE point
+    #         self.krun(scan_val, i)
+    #
+    # @kernel
+    # def krun(self, scan_val, iter_index):
+    #     self.core.reset()
+    #
+    #     # Update self.iter so run_scan_point knows if it's the first run (for DDS init)
+    #     self.iter = iter_index
+    #
+    #     # Check for Stop button
+    #     self.rid_termination()
+    #
+    #     # Run Physics for this single point
+    #     self.run_scan_point(scan_val)
+    #
+    #     # Send results back to Host for plotting
+    #     self.host_push_results(scan_val, self.histpoints, self.iter)
 
 
 
@@ -804,6 +830,7 @@ class allZScan(EnvExperiment):
             ele3 = (ele2[0].split('    '))[-1]
             ele4=''.join(list(ele3)[1:-1])
             self.globaldataset[ele4]=self.get_dataset(ele4)
+        print("Saved dataset")
 
     def analyze(self): # artiq barebone's postscan  function
 

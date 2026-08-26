@@ -66,6 +66,9 @@ class ExperimentOptimizerSchedule(EnvExperiment):
                         if n < self.calibrationNum:
 
                                 self.setattr_argument("CheckThresholding"+str(n+1), BooleanValue(default=True), group="Calibration "+str(n+1))
+                                self.setattr_argument("CheckCameraDetect" + str(n + 1), BooleanValue(default=False), group="Calibration " + str(n + 1))
+                                self.setattr_argument("CheckGlobalCoolingShot" + str(n + 1), BooleanValue(default=False), group="Calibration " + str(n + 1))
+
                                 self.setattr_argument("Use"+str(n+1),BooleanValue(default=False), group="Calibration "+str(n+1))
                                 self.setattr_argument("Parameter"+str(n+1), EnumerationValue(list(self.param_dict.keys()),
                                                                                              default=list(self.param_dict.keys())[n]),group="Calibration "+str(n+1))
@@ -87,6 +90,8 @@ class ExperimentOptimizerSchedule(EnvExperiment):
                                                       group="Calibration " + str(n + 1))
                         else:
                                 self.setattr_argument("CheckThresholding", BooleanValue(default=True),group="Main Experiment")
+                                self.setattr_argument("CheckCameraDetect", BooleanValue(default=True),group="Main Experiment" )
+                                self.setattr_argument("CheckGlobalCoolingShot", BooleanValue(default=False),group="Main Experiment")
                                 self.setattr_argument("Use",BooleanValue(default=False),group="Main Experiment")
                                 self.setattr_argument("Parameter", EnumerationValue(list(self.param_dict.keys()),
                                                                                              default=list(self.param_dict.keys())[2]),group="Main Experiment")
@@ -180,11 +185,15 @@ class ExperimentOptimizerSchedule(EnvExperiment):
 
                                 useVal=getattr(self,"Use"+str(n+1))
                                 thresholdval=getattr(self,"CheckThresholding"+str(n+1))
+                                checkCameraVal=getattr(self,"CheckCameraDetect"+str(n+1))
+                                checkGlobalCoolingshot=getattr(self,"CheckGlobalCoolingShot"+str(n+1))
 
                                 if useVal:
 
-                                    # set threshold value in dataset temporarily to new value
+                                    # set threshold and other override values in dataset temporarily to new value
                                     new_thresh=bool(thresholdval)
+                                    new_camera_detect=bool(checkCameraVal)
+                                    new_gss=checkGlobalCoolingshot
 
                                     # set the following time parameters
                                     paramScanObj=getattr(self,"Parameter_scan"+str(n+1))
@@ -214,8 +223,15 @@ class ExperimentOptimizerSchedule(EnvExperiment):
                                             "ScanAOM355_v1_DC_DMA_optimizer.executeScan." + "CheckThresholding":[{
                                                 "path":"",
                                                 "value":new_thresh
+                                            }],
+                                            "ScanAOM355_v1_DC_DMA_optimizer.executeScan." + "checkCameraDetection": [{
+                                                "path": "",
+                                                "value": new_camera_detect
+                                            }],
+                                            "ScanAOM355_v1_DC_DMA_optimizer.executeScan." + "checkGlobalCoolingShot": [{
+                                                "path": "",
+                                                "value": new_gss
                                             }]
-
                                         }
                                     }
 

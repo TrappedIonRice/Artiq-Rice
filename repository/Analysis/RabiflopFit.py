@@ -56,10 +56,10 @@ def sinusoid_decay(t,a,omega,gamma,phi0,b):
 plt.close('all')
 
 #initial values for fit
-Omega0=2*np.pi*0.25*10**6; #MHz
+Omega0=2*np.pi*0.1*10**6; #MHz
 eta=np.sqrt(3/2/2 *3/0.9)*0.1;
-eta= np.sqrt(6.626*10**-34 *(2/355*10**9)**2 /(2* 171*1.6*10**-27 * 1.7*10**6))*np.abs(np.cos(0))
-eta=0.08
+eta= np.sqrt(6.626*10**-34 *(1/411*10**9)**2 /(2* 171*1.6*10**-27 * 0.7*10**6))*np.abs(np.cos(0))
+# eta=0.12
 print(eta)
 #/np.sqrt(2)
 #eta= 0.039/np.sqrt(2)
@@ -67,12 +67,12 @@ print(eta)
 tarr=np.linspace(0,40,200)*10**(-6); # mu*s
 
 phi0RSB=np.pi;
-phi0carrier=np.pi/2;
+phi0carrier=np.pi;
 phi0BSB=np.pi/2;
-nbar=0.05
+nbar=0.5
 ph_N=150;
-rescale=1
-offset=0
+rescale=0.78073
+offset=0.10719
 gamma=0
 
 heatingrate, n_init= 1000, 1000
@@ -95,13 +95,13 @@ BSBfloparr=BSBflop(tarr, Omega0, eta,phi0BSB,nbar,ph_N, rescale, offset, gamma)*
 def carrierfitmdl(Omega0,eta,phi0carrier, nbar,ph_N,rescale,offset):
     carriermdl = Model(Carrierflop)
     carrierparams = Parameters()
-    carrierparams.add('Omega', value=Omega0, min=0.06 * 2 * np.pi * 10 ** 6, max=0.1 * 2 * np.pi * 10 ** 6, vary= True)
-    carrierparams.add('eta', value=eta, min=0.05, max=0.2, vary=True)
+    carrierparams.add('Omega', value=Omega0, min=0.095 * 2 * np.pi * 10 ** 6, max=0.14 * 2 * np.pi * 10 ** 6, vary= True)
+    carrierparams.add('eta', value=eta, min=0.04, max=0.15, vary=False)
     carrierparams.add('phi0', value=phi0carrier, min=0, max=2*np.pi, vary=True)
-    carrierparams.add('nbar', value=nbar, min=0, max=30)
+    carrierparams.add('nbar', value=nbar, min=0, max=60)
     carrierparams.add('ph_N', value=ph_N,  vary=False)
-    carrierparams.add('rescale', value=rescale, min=0.00, max=2,  vary=False)
-    carrierparams.add('offset', value=offset, min=-1, max=1, vary= False)
+    carrierparams.add('rescale', value=rescale, min=0.00, max=80,  vary=True)
+    carrierparams.add('offset', value=offset, min=-1, max=80, vary= True)
     return carriermdl,carrierparams
 def RSBfitmdl(Omega0,eta,phi0, nbar,ph_N,rescale,offset, gamma):
     RSBmdl = Model(RSBflop)
@@ -575,6 +575,22 @@ for i,rid in enumerate(lst_rids):
     # phononerr_data = np.array([0.01,0.02,0.03,0.06])
     # waittime = np.array([0, 50,100,200]) * 10 ** -3
 
+    #2025-11-01 411 Axial heating 775kHz- Carrier, with rescaling= 0.823 , offset= 0.138
+    # phonondata = np.array([5.33,10.42,15.21,20.03])
+    # phononerr_data = np.array([0.33,0.76,0.91,1.06])
+    # waittime = np.array([0,1,2,3]) * 10 ** -3
+
+    # 2025-11-01 411 Axial heating 419kHz- Carrier, with rescaling= 0.823 , offset= 0.138
+    # phonondata = np.array([5.79,9.89,17.27,22.69,23.84])
+    # phononerr_data = np.array([0.79,1.48,2.37,3.38,3.05])
+    # waittime = np.array([0,0.25,0.5,0.75,1]) * 10 ** -3
+
+    # 2025-12-15
+    phonondata = np.array([5.23, 13.39, 16.45, 23.20, 29.15])
+    phononerr_data = np.array([1.1, 1.6, 2.4, 2.1, 5.6])
+    waittime = np.array([0, 0.5, 1, 1.5, 2]) * 10 ** -3
+
+
 
 
     # plt.figure(2, figsize=(10,8))
@@ -601,20 +617,20 @@ for i,rid in enumerate(lst_rids):
             waittime=xdata_vals_1
             bsb=ydata_vals_1
             bsb_err=errydata_vals_1
-            #print(bsb)
+            print(bsb)
             continue
         else:
             rsb=ydata_vals_1
             rsb_err=errydata_vals_1
-            #print(rsb)
+            print(rsb)
             RR = rsb / bsb
             R_err = RR * np.sqrt((bsb_err / bsb) ** 2 + (rsb_err / rsb) ** 2)
             phonondata = RR / (1 - RR)
             phononerr_data = R_err / (1 - RR) ** 2
             fitchoice = 3#int(input("Enter fit choice (0- carrier, 1 - RSB, 2- BSB, 3- heating rate) : "))
-            # print(waittime)
-            # print(phonondata)
-            # print( phononerr_data)
+            print(waittime)
+            print(phonondata)
+            print( phononerr_data)
     else:
         fitchoice = int(input("Enter fit choice (0- carrier, 1 - RSB, 2- BSB, 3- heating rate) : "))
 
@@ -737,8 +753,8 @@ for i,rid in enumerate(lst_rids):
         # plt.plot(xdata_vals_1*10**6,carrierres.best_fit, 'grey', linestyle='--', label=r'Carrier fit, $\Omega$ = $2\pi*${0:.2f} kHz'.format(Omegafit/(2*np.pi*10**3)))
         cmap=mpl.colormaps['plasma']
         #for i in range(20):
-       # plt.figure()
-        #i=0.25
+        # plt.figure()
+        # i=0.25
         color_choice=cmap(i/4.0)
         plt.errorbar(xdata_vals_1 * 10 ** 6, ydata_vals_1, yerr=errydata_vals_1, fmt="o-", color=color_choice,markersize= 9, label='Carrier flop, rid: {0:d}'.format(rid))
        # plt.plot(xdata_vals_1 * 10 ** 3, sinusoid_decayFit_res.best_fit, color=color_choice, linestyle='--', linewidth=3) # only plotting fit, no label

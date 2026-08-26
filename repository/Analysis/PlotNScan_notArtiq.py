@@ -72,7 +72,7 @@ for ii, rid in enumerate(lst_rids):
     err_vals_1 = np.array(list(dict_datasets[key_name_err]), dtype=float)
     # x_vals_1 = np.array(x_vals_1) * 1e-3
     plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, fmt="-o", label="{0:d}".format(rid))
-    print(x_vals_1,y_vals_1,err_vals_1)
+    #print(x_vals_1,y_vals_1,err_vals_1)
    # plt.errorbar(x_vals_1, y_vals_1,color=colorlist[ii], yerr=err_vals_1, xerr= None, fmt="-o", label=labellist[ii])
     #print(x_vals_1)
     #plt.plot(x_vals_1, y_vals_1, 'X',color=colorlist[ii], label="{0:d}".format(rid))

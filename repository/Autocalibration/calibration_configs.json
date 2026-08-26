@@ -1,13 +1,14 @@
 {
   "calib_config":{
     "allZScan_config": {
-      "Frequency355_Raman1": 192532052.142507,
+      "Frequency355_Raman1": 192546088.00,
       "Amplitude355_Raman1": 0.7,
-      "RamanTime": 1.5e-6,
+      "RamanTime": 1e-6,
       "prepampOP": 0.8,
       "preptimeOP": 5e-5,
       "TimeMW": 1e-8,
-      "DetTime369": 0.5e-3,
+      "DetTime369": 1e-3,
+      "Time435": 1e-8,
       "SBCcheck": false
     },
     "RSBch1_LP_Freq_Scan_config": {
