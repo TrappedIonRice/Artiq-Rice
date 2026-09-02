@@ -476,32 +476,32 @@ class awgPrecomputer(EnvExperiment):
                               tooltip="Variable(s) for X-axis (e.g. AWG.ch1.T0, AWG.ch1.T_pulse)", group="X-Axis Scan")
         self.setattr_argument("ramanTime_ms",
                               Scannable(default=RangeScan(0.0, 0.001, 5), global_min=0.0 * ms, global_step=1e-5 * ms,
-                                        unit='ms', ndecimals=3), group="X-Axis Scan")
+                                        unit='ms', ndecimals=6), group="X-Axis Scan")
         self.setattr_argument("ramanPh2_2pi",
-                              Scannable(NoScan(value=0.5), global_min=-1.0, global_max=1.0, global_step=1e-4, unit="",
-                                        ndecimals=3), group="X-Axis Scan")
+                              Scannable(NoScan(value=0.5), global_min=-100.0, global_max=100.0, global_step=1e-6, unit="",
+                                        ndecimals=6), group="X-Axis Scan")
         self.setattr_argument("ramanFreq_MHz",
                               Scannable(NoScan(value=100.0), global_min=-400.0 * MHz, global_max=400.0 * MHz,
                                         global_step=1e-9 * MHz, unit="MHz", ndecimals=6), group="X-Axis Scan")
         self.setattr_argument("ramanAmp",
                               Scannable(NoScan(value=0.5), global_min=0.0, global_max=1.0, global_step=1e-9, unit="",
-                                        ndecimals=3), group="X-Axis Scan")
+                                        ndecimals=6), group="X-Axis Scan")
 
         # --- Y-Axis Targets ---
         self.setattr_argument("scan_variables_y_csv", StringValue(""),
                               tooltip="Variable(s) for Y-axis", group="Y-Axis Scan")
         self.setattr_argument("ramanTime_y_ms",
                               Scannable(default=RangeScan(0.0, 0.001, 5), global_min=0.0 * ms, global_step=1e-5 * ms,
-                                        unit='ms', ndecimals=3), group="Y-Axis Scan")
+                                        unit='ms', ndecimals=6), group="Y-Axis Scan")
         self.setattr_argument("ramanPh2_y_2pi",
-                              Scannable(NoScan(value=0.5), global_min=-1.0, global_max=1.0, global_step=1e-4, unit="",
-                                        ndecimals=3), group="Y-Axis Scan")
+                              Scannable(NoScan(value=0.5), global_min=-100.0, global_max=100.0, global_step=1e-4, unit="",
+                                        ndecimals=6), group="Y-Axis Scan")
         self.setattr_argument("ramanFreq_y_MHz",
                               Scannable(NoScan(value=100.0), global_min=-400.0 * MHz, global_max=400.0 * MHz,
                                         global_step=1e-9 * MHz, unit="MHz", ndecimals=6), group="Y-Axis Scan")
         self.setattr_argument("ramanAmp_y",
                               Scannable(NoScan(value=0.5), global_min=0.0, global_max=1.0, global_step=1e-9, unit="",
-                                        ndecimals=3), group="Y-Axis Scan")
+                                        ndecimals=6), group="Y-Axis Scan")
 
     def _parse_scannable(self, scan_var_name, is_y=False):
         """Helper to fetch active scannable based on variable leaf prefix"""
@@ -576,7 +576,8 @@ class awgPrecomputer(EnvExperiment):
                 self.scan_points_y = self._apply_center_out(self.scan_points_y)
 
             # Create unrolled grid
-            x_grid, y_grid = np.meshgrid(self.scan_points_x, self.scan_points_y, indexing='ij')
+            # x_grid, y_grid = np.meshgrid(self.scan_points_x, self.scan_points_y, indexing='ij')
+            x_grid, y_grid = np.meshgrid(self.scan_points_x, self.scan_points_y, indexing='xy') # AM 2026/8/27
             flat_x, flat_y = x_grid.flatten(), y_grid.flatten()
 
             for x_val, y_val in zip(flat_x, flat_y):
@@ -696,7 +697,11 @@ class awgPrecomputer(EnvExperiment):
 
                 resp = pyon.decode(s.recv(1024 * 1024).decode())
                 if resp.get("status") != "PRECOMPUTATION_DONE":
-                    raise RuntimeError("Precomputation Failed")
+                    # raise RuntimeError("Precomputation Failed")
+                    raise RuntimeError(f"Precomputation Failed: {resp.get('message', resp)}") # to display actual error log
+                # 2026/9/1 AM: for proper account of time in sequences
+                self.set_dataset("AWG.ch1.FixedOffset", resp.get("ch1_fixed_offset", 0.0), broadcast=True, persist=True)
+
                 print("[ARTIQ RPC] AWG confirmed: Waveforms Cached in Software.")
         except Exception as e:
             print(f"[ARTIQ RPC] Error in trigger_precomputation: {e}")

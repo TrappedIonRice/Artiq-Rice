@@ -83,6 +83,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.scannable_names = []
         self.scannable_units = {}
 
+
+
         # Obtaining user-input parameters from GUI
 
         def add_scannable(name, argument, group=None, tooltip=None):
@@ -123,14 +125,22 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                                 unit="ms", ndecimals=4), group='935Clearout')
         # ---------------------#
 
+        # -----Scan properties------#
+        self.setattr_argument(
+            "Scan_Order",
+            StringValue(default="0,1"),
+            group="Scan properties",
+            tooltip="Enter '0,1' for default script order, or '1,0' to reverse the inner/outer loops."
+        )
+        self.setattr_argument("checkCameraDetection", BooleanValue(default=False), group='Scan properties')
+        self.setattr_argument("checkGlobalCoolingShot", BooleanValue(default=False), group='Scan properties')
+        self.setattr_argument("CheckThresholding", BooleanValue(default=self.default_ThresholdCheck), group='Scan properties')
+        self.setattr_argument("CenterScanMode", EnumerationValue(["linear", "center_out"], default="linear"),
+                              group="Scan properties")
+        self.setattr_argument("checkLineTrigger", BooleanValue(default=False), group='Scan properties')
 
         # -----Detection-------#
-        self.setattr_argument("checkCameraDetection", BooleanValue(default=False), group='Detection')
-        self.setattr_argument("checkGlobalCoolingShot", BooleanValue(default=False), group='Detection')
-        self.setattr_argument("CheckThresholding", BooleanValue(default=self.default_ThresholdCheck), group='Detection')
-        self.setattr_argument("CenterScanMode", EnumerationValue(["linear", "center_out"], default="linear"),
-                              group="Detection")
-        self.setattr_argument("checkLineTrigger", BooleanValue(default=False), group='Detection')
+
         add_scannable("DetTime369", Scannable(NoScan(value=self.default_detectionTime), global_min=0.00001 * ms,
                                               global_step=1.0e-9 * ms, unit="ms", ndecimals=4), group='Detection')
         # ---------------------#
@@ -350,9 +360,13 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         # ---------------------#
 
 
+
         self.t_step_durations = []
         self.t_init_roundtrip = 0.0
         self.t_total_scan = 0.0
+
+        self.awg_repeat_per_scan_point = False
+        self.awg_cycle_len = 1
 
     def extract_dataset_defaults(self):
         self.default_SBCcheck = bool(self.get_dataset("SBC.Check"))
@@ -508,42 +522,141 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.scan_arr_y = np.array([0.0])
         self.scan_unit_y = ""
 
+        # self.awg_enabled = getattr(self, "EnableAWG", False)
+        # self.awg_scan_info = None
+        # self.awg_globals = None
+        #
+        # scan_mode = getattr(self, "CenterScanMode", "linear")
+        #
+        # # --- RESTORED AWG LOGIC ---
+        # if self.awg_enabled:
+        #     self.scan_param_name = self.get_dataset('AWG.Scan_Parameter.name')
+        #     self.scan_arr = np.array(self.get_dataset('AWG.Scan_Parameter.array'))
+        #     awg_scan_unit = self.get_dataset('AWG.Scan_Parameter.units')
+        #     self.scan_unit = 'ms' if awg_scan_unit == 's' else ('MHz' if awg_scan_unit == 'Hz' else awg_scan_unit)
+        #
+        #     # Catch 2D Variables
+        #     self.is_2d_scan = self.get_dataset('AWG.Scan_Parameter.is_2D', default=False)
+        #     if self.is_2d_scan:
+        #         self.scan_param_y = self.get_dataset('AWG.Scan_Parameter.name_y')
+        #         self.scan_arr_y = np.array(self.get_dataset('AWG.Scan_Parameter.array_y'))
+        #         awg_scan_unit_y = self.get_dataset('AWG.Scan_Parameter.units_y')
+        #         self.scan_unit_y = 'ms' if awg_scan_unit_y == 's' else (
+        #             'MHz' if awg_scan_unit_y == 'Hz' else awg_scan_unit_y)
+        #
+        #         master_scan_vars = [str(self.scan_param_name), str(self.scan_param_y)]
+        #     else:
+        #         master_scan_vars = [str(self.scan_param_name)]
+        #
+        #     # Fetch the unrolled grid for the AWG payload
+        #     awg_unrolled_array = self.get_dataset('AWG.Scan_Parameter.unrolled_grid')
+        #
+        #     try:
+        #         num_repeat = getattr(self, "num_repeat", 100)
+        #         self.awg_scan_info = {
+        #             "scan_variables": master_scan_vars,
+        #             "scan_array": awg_unrolled_array,  # Re-send the unrolled grid to hit the cache
+        #             "num_reps": num_repeat,
+        #             "is_2d": self.is_2d_scan
+        #         }
+        #         self.awg_globals = self.get_awg_globals()
+        #     except Exception as e:
+        #         print(f"AWG Setup Error in Prepare: {e}")
+
         self.awg_enabled = getattr(self, "EnableAWG", False)
         self.awg_scan_info = None
         self.awg_globals = None
+        self.awg_repeat_per_scan_point = False
+        self.awg_cycle_len = 1
 
         scan_mode = getattr(self, "CenterScanMode", "linear")
 
-        # --- RESTORED AWG LOGIC ---
-        if self.awg_enabled:
-            self.scan_param_name = self.get_dataset('AWG.Scan_Parameter.name')
-            self.scan_arr = np.array(self.get_dataset('AWG.Scan_Parameter.array'))
-            awg_scan_unit = self.get_dataset('AWG.Scan_Parameter.units')
-            self.scan_unit = 'ms' if awg_scan_unit == 's' else ('MHz' if awg_scan_unit == 'Hz' else awg_scan_unit)
-
-            # Catch 2D Variables
-            self.is_2d_scan = self.get_dataset('AWG.Scan_Parameter.is_2D', default=False)
-            if self.is_2d_scan:
-                self.scan_param_y = self.get_dataset('AWG.Scan_Parameter.name_y')
-                self.scan_arr_y = np.array(self.get_dataset('AWG.Scan_Parameter.array_y'))
-                awg_scan_unit_y = self.get_dataset('AWG.Scan_Parameter.units_y')
-                self.scan_unit_y = 'ms' if awg_scan_unit_y == 's' else (
-                    'MHz' if awg_scan_unit_y == 'Hz' else awg_scan_unit_y)
-
-                master_scan_vars = [str(self.scan_param_name), str(self.scan_param_y)]
+        # --- Always collect barebones (non-AWG) scannables first ---
+        scanned_vars = []
+        for name in getattr(self, "scannable_names", []):
+            arg = getattr(self, name)
+            if hasattr(arg, "value"):
+                setattr(self, name, arg.value)
             else:
-                master_scan_vars = [str(self.scan_param_name)]
+                try:
+                    is_random = getattr(arg, "randomize", False)
+                    scan_values = np.array(list(arg))
+                    if len(scan_values) > 1:
+                        unit = getattr(self, "scannable_units", {}).get(name, "")
+                        scanned_vars.append((name, scan_values, unit, is_random))
+                except TypeError:
+                    continue
 
-            # Fetch the unrolled grid for the AWG payload
-            awg_unrolled_array = self.get_dataset('AWG.Scan_Parameter.unrolled_grid')
-
+        if len(scanned_vars) >= 2:
+            order_str = getattr(self, "Scan_Order", "0,1").strip()
             try:
-                num_repeat = getattr(self, "num_repeat", 100)
+                indices = [int(idx.strip()) for idx in order_str.split(",")]
+                scanned_vars = [scanned_vars[i] for i in indices]
+            except (ValueError, IndexError) as e:
+                print(f"[WARNING] Invalid scan order '{order_str}'. Using default order. Error: {e}")
+
+        if self.awg_enabled:
+            awg_unrolled_array = self.get_dataset('AWG.Scan_Parameter.unrolled_grid')
+            num_awg_pts = len(awg_unrolled_array)
+            num_repeat = getattr(self, "num_repeat", 100)
+            is_2d_awg = self.get_dataset('AWG.Scan_Parameter.is_2D', default=False)
+
+            awg_name = self.get_dataset('AWG.Scan_Parameter.name')
+            master_scan_vars = [str(awg_name)]
+            if is_2d_awg:
+                awg_name_y = self.get_dataset('AWG.Scan_Parameter.name_y')
+                master_scan_vars.append(str(awg_name_y))
+
+            if len(scanned_vars) == 0:
+                # ---- original behavior: main scan IS the AWG scan ----
+                self.scan_param_name = awg_name
+                self.scan_arr = np.array(self.get_dataset('AWG.Scan_Parameter.array'))
+                awg_unit = self.get_dataset('AWG.Scan_Parameter.units')
+                self.scan_unit = 'ms' if awg_unit == 's' else ('MHz' if awg_unit == 'Hz' else awg_unit)
+                self.is_2d_scan = is_2d_awg
+                if is_2d_awg:
+                    self.scan_param_y = awg_name_y
+                    self.scan_arr_y = np.array(self.get_dataset('AWG.Scan_Parameter.array_y'))
+                    awg_unit_y = self.get_dataset('AWG.Scan_Parameter.units_y')
+                    self.scan_unit_y = 'ms' if awg_unit_y == 's' else ('MHz' if awg_unit_y == 'Hz' else awg_unit_y)
+                self.awg_repeat_per_scan_point = False
+                self.awg_cycle_len = num_awg_pts
+            else:
+                # ---- decoupled: barebones scannable drives scan_arr, AWG just repeats ----
+                if len(scanned_vars) == 1:
+                    self.scan_param_name, self.scan_arr, self.scan_unit, is_random = scanned_vars[0]
+                    if not is_random:
+                        if scan_mode == "linear":
+                            self.scan_arr = np.sort(self.scan_arr)
+                        elif scan_mode == "center_out":
+                            if np.all(np.diff(self.scan_arr) >= 0) or np.all(np.diff(self.scan_arr) <= 0):
+                                self.scan_arr = to_center_out(self.scan_arr)
+                else:
+                    self.is_2d_scan = True
+                    self.scan_param_name, self.scan_arr, self.scan_unit, is_random_x = scanned_vars[0]
+                    self.scan_param_y, self.scan_arr_y, self.scan_unit_y, is_random_y = scanned_vars[1]
+                    if not is_random_x:
+                        self.scan_arr = np.sort(self.scan_arr) if scan_mode == "linear" else to_center_out(
+                            self.scan_arr)
+                    if not is_random_y:
+                        self.scan_arr_y = np.sort(self.scan_arr_y) if scan_mode == "linear" else to_center_out(
+                            self.scan_arr_y)
+
+                if num_awg_pts != num_repeat:
+                    print(f"[WARNING] AWG precomputed {num_awg_pts} pts but Repetitions={num_repeat}. "
+                          f"They should match for the AWG cycle to align cleanly with one macro scan point.")
+                self.awg_repeat_per_scan_point = True
+                self.awg_cycle_len = num_awg_pts
+
+            outer_pts = len(self.scan_arr) * (len(self.scan_arr_y) if getattr(self, "is_2d_scan", False) else 1)
+            try:
                 self.awg_scan_info = {
                     "scan_variables": master_scan_vars,
-                    "scan_array": awg_unrolled_array,  # Re-send the unrolled grid to hit the cache
+                    "scan_array": awg_unrolled_array,
                     "num_reps": num_repeat,
-                    "is_2d": self.is_2d_scan
+                    "is_2d": is_2d_awg,
+                    "repeat_per_scan_point": self.awg_repeat_per_scan_point,  # NEW — tell the server
+                    "num_outer_scan_points": outer_pts if self.awg_repeat_per_scan_point else 1,  # NEW
                 }
                 self.awg_globals = self.get_awg_globals()
             except Exception as e:
@@ -552,7 +665,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         # --- STANDARD ARTIQ ARGUMENT SCANS ---
         else:
             scanned_vars = []
-            for name in getattr(self, "scannable_names", []):
+            for name in getattr(self, "scannable_names", []): # AM: due to this structure, order of selected scans is based on order in the exp script, not selection order
                 arg = getattr(self, name)
 
                 if hasattr(arg, "value"):
@@ -567,6 +680,21 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                             scanned_vars.append((name, scan_values, unit, is_random))
                     except TypeError:
                         continue
+
+            # --- NEW: APPLY SCAN ORDER ---
+            if len(scanned_vars) >= 2:
+                order_str = getattr(self, "Scan_Order", "0,1").strip()
+
+                try:
+                    # Convert "1,0" -> [1, 0]
+                    indices = [int(idx.strip()) for idx in order_str.split(",")]
+
+                    # Rebuild the list using the parsed indices
+                    scanned_vars = [scanned_vars[i] for i in indices]
+
+                except (ValueError, IndexError) as e:
+                    print(
+                        f"[WARNING] Invalid scan order '{order_str}'. Using default script order. Error: {e}")
 
             # --- 1D SCAN HANDLING ---
             if len(scanned_vars) == 1:
@@ -643,7 +771,6 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
             # Initialize matrix with NaNs for center-out expansion
             self.z_mat = np.full((num_y, num_x), np.nan)
-
             self.set_dataset("ScanDataPlot.z_vals", self.z_mat, broadcast=True)
             self.set_dataset("ScanDataPlot.x_label", f"{self.scan_param_name} [{self.scan_unit}]", broadcast=True)
             self.set_dataset("ScanDataPlot.y_label",
@@ -735,45 +862,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         # Detect if target parameter is explicitly an AWG parameter
         raw_x = getattr(self, "scan_param_name", "")
         raw_y = getattr(self, "scan_param_y", "") if getattr(self, "is_2d_scan", False) else ""
-        is_awg_scan = getattr(self, "awg_enabled", False) and ("AWG" in raw_x or "AWG" in raw_y)
-
-        # 1. Enforce 2D Axis Priority Swap
-        if getattr(self, "is_2d_scan", False):
-            priority_order = [
-                "AWG.ch1.T0", "AWG.ch2.T0", "AWG.ch3.T0", "AWG.ch4.T0",
-                "AWG.ch1.T1", "AWG.ch2.T1", "AWG.ch3.T1", "AWG.ch4.T1",
-                "Raman_time", "RamanTime", "wait_time", "WaitTime", "TimeMW", "preptime",
-                "AWG.ch1.V0", "AWG.ch2.V0", "AWG.ch3.V0", "AWG.ch4.V0",
-                "AWG.ch1.Amp", "AWG.ch2.Amp", "AWG.ch3.Amp", "AWG.ch4.Amp",
-                "AmplitudeRaman1", "Amplitude355_Raman1",
-                "FrequencyRaman1", "Frequency355_Raman1"
-            ]
-
-            def get_priority(param_str):
-                for rank, key in enumerate(priority_order):
-                    if key in param_str:
-                        return rank
-                return 999
-
-            rank_x = get_priority(raw_x)
-            rank_y = get_priority(raw_y)
-
-            if rank_y < rank_x:
-                print(f"[AXIS SWAPPER] Swapping Y ({raw_y}) to X-axis to enforce priority!")
-                self.scan_param_name, self.scan_param_y = raw_y, raw_x
-                self.scan_arr, self.scan_arr_y = self.scan_arr_y, self.scan_arr
-
-                if hasattr(self, "plot_scan_arr") and hasattr(self, "plot_scan_arr_y"):
-                    self.plot_scan_arr, self.plot_scan_arr_y = self.plot_scan_arr_y, self.plot_scan_arr
-                if hasattr(self, "plot_scan_arr_sorted") and hasattr(self, "plot_scan_arr_y_sorted"):
-                    self.plot_scan_arr_sorted, self.plot_scan_arr_y_sorted = (
-                        self.plot_scan_arr_y_sorted,
-                        self.plot_scan_arr_sorted,
-                    )
-                if hasattr(self, "x_index_map") and hasattr(self, "y_index_map"):
-                    self.x_index_map, self.y_index_map = self.y_index_map, self.x_index_map
-
-                self.z_mat = np.full((len(self.scan_arr_y), len(self.scan_arr)), np.nan)
+        # is_awg_scan = getattr(self, "awg_enabled", False) and ("AWG" in raw_x or "AWG" in raw_y)
+        is_awg_native_scan = "AWG" in raw_x or "AWG" in raw_y  # only for the remap below
+        awg_hw_enabled = getattr(self, "awg_enabled", False)  # NEW — the real hardware gate
 
         # Setup Targets
         self.num_points = len(self.scan_arr)
@@ -786,13 +877,48 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             kernel_scan_target_y = param_to_attr[kernel_scan_target_y]
 
         # Remap AWG targets to native internal variables
-        if is_awg_scan:
-            awg_map = {
-                "AWG.ch1.T0": "RamanTime", "AWG.ch2.T0": "RamanTime", "AWG.ch3.T0": "RamanTime",
-                "AWG.ch4.T0": "RamanTime", "AWG.ch1.T1": "WaitTime",
-                "AWG.ch1.V0": "Amplitude355_Raman1", "AWG.ch2.V0": "Amplitude355_RamanA16",
-                "AWG.ch3.V0": "Amplitude355_RamanB2", "AWG.ch4.V0": "Amplitude355_RamanA15"
-            }
+        # if is_awg_scan:
+        if is_awg_native_scan:
+
+            ## old version of awg_map
+            # awg_map = {
+            #     "AWG.ch1.T0": "RamanTime", "AWG.ch2.T0": "RamanTime", "AWG.ch3.T0": "RamanTime",
+            #     "AWG.ch4.T0": "RamanTime", "AWG.ch1.T1": "WaitTime",
+            #     "AWG.ch1.V0": "Amplitude355_Raman1",
+            #     "AWG.ch1.V1": "Amplitude355_Raman1",
+            #     "AWG.ch2.V0": "Amplitude355_RamanA16",
+            #     "AWG.ch3.V0": "Amplitude355_RamanB2",
+            #     "AWG.ch4.V0": "Amplitude355_RamanA15"
+            # }
+
+
+
+            # 2026/8/27 AM: Ensuring a proxy map is made between parameters of the AWG to that in Artiq so that scannables are well defined.
+            # currently the mapping may not be the most robust. Capped to 10 because afterwards the numbers can get tricky to distinguish.
+
+            awg_map = { }
+            # times
+            awg_map.update({"AWG.ch1.T" + str(i) : "RamanTime" for i in range(10) })
+            awg_map.update({"AWG.ch2.T" + str(i): "RamanTime" for i in range(10) })
+            awg_map.update({"AWG.ch3.T" + str(i): "RamanTime" for i in range(10) })
+            awg_map.update({"AWG.ch4.T" + str(i): "RamanTime" for i in range(10) })
+            # amplitudes
+            awg_map.update({"AWG.ch1.V" + str(i): "Amplitude355_Raman1" for i in range(10) })
+            awg_map.update({"AWG.ch2.v" + str(i): "Amplitude355_RamanA16" for i in range(10) })
+            awg_map.update({"AWG.ch3.V" + str(i): "Amplitude355_RamanB2" for i in range(10) })
+            awg_map.update({"AWG.ch4.V" + str(i): "Amplitude355_RamanA15" for i in range(10) })
+            # frequencies
+            awg_map.update({"AWG.ch1.f0" + str(i): "Frequency355_Raman1" for i in range(10) })
+            awg_map.update({"AWG.ch2.f0" + str(i): "Frequency355_RamanA16" for i in range(10) })
+            awg_map.update({"AWG.ch3.f0" + str(i): "Frequency355_RamanB2" for i in range(10) })
+            awg_map.update({"AWG.ch4.f0" + str(i): "Frequency355_RamanA15" for i in range(10) })
+            # phases
+            awg_map.update({"AWG.ch1.ph" + str(i): "Phase1" for i in range(10) })
+            awg_map.update({"AWG.ch2.ph" + str(i): "Phase1" for i in range(10) })
+            awg_map.update({"AWG.ch3.ph" + str(i): "Phase1" for i in range(10) })
+            awg_map.update({"AWG.ch4.ph" + str(i): "Phase1" for i in range(10) })
+
+
             for awg_var, raman_var in awg_map.items():
                 if awg_var in kernel_scan_target:
                     kernel_scan_target = raman_var
@@ -822,17 +948,27 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             if name in overrides:
                 val = overrides[name]
             elif name == "iter":
-                val = 0.0;
+                val = 0.0
                 self.iter_index = idx
             elif name == "num_repeat":
                 val = float(self.num_repeat)
+            # elif name == "EnableAWG":
+            #     # Enable AWG in kernel ONLY if this is an AWG scan
+            #     val = 1.0 if is_awg_scan else 0.0
+            # elif name == "RamanTime" and is_awg_scan: # AM: these are too explicit assignments of T0 and T1.
+            #     val = self.get_dataset("AWG.ch1.T0")
+            # elif name == "WaitTime" and is_awg_scan:
+            #     val = self.get_dataset("AWG.ch1.T1")
             elif name == "EnableAWG":
-                # Enable AWG in kernel ONLY if this is an AWG scan
-                val = 1.0 if is_awg_scan else 0.0
-            elif name == "RamanTime" and is_awg_scan:
-                val = self.get_dataset("AWG.ch1.T0")
-            elif name == "WaitTime" and is_awg_scan:
-                val = self.get_dataset("AWG.ch1.T1")
+                val = 1.0 if awg_hw_enabled else 0.0  # was: is_awg_scan
+            elif name == "RamanTime" and awg_hw_enabled:  # was: is_awg_scan
+                # val = self.get_dataset("AWG.ch1.T0")
+                # 2026/9/1 AM: for proper account of time in sequences
+                val = self.get_dataset("AWG.ch1.FixedOffset")
+
+            # elif name == "WaitTime" and awg_hw_enabled:  # was: is_awg_scan
+            #     val = self.get_dataset("AWG.ch1.T1")
+
             elif name == 'allZ' and getattr(self, "checkAllZ_calib", False):
                 val = self.get_dataset('Calibrations.AllZ_calib_max')
             else:
@@ -860,7 +996,12 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             # Check for X mapping
             if name == kernel_scan_target:
                 self.scan_index = idx
-                self.scan_values = [float(x) for x in self.scan_arr]
+                # self.scan_values = [float(x) for x in self.scan_arr]
+                if name == "RamanTime" and awg_hw_enabled:
+                    fixed_offset = self.get_dataset("AWG.ch1.FixedOffset")
+                    self.scan_values = [float(x) + fixed_offset for x in self.scan_arr]
+                else:
+                    self.scan_values = [float(x) for x in self.scan_arr]
 
             # Check for Y mapping
             if getattr(self, "is_2d_scan", False) and name == kernel_scan_target_y:
@@ -1643,7 +1784,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
 
 
-                # ###### wait time with 355 on ##########
+                ###### wait time with 355 on ##########
 
                 # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
                 # self.urukul2_ch0.set_att(0 * dB)
@@ -1651,9 +1792,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # self.ttl6.on() # Raman 2
                 # delay(wait_time)
                 # delay_mu(1)
-                # # self.urukul2_ch0.sw.off() # Raman 1
+                # self.urukul2_ch0.sw.off() # Raman 1
                 # self.ttl6.off() # Raman 2
-                ########################################
+                #######################################
 
 
 
@@ -1848,9 +1989,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # t2 = t1 + Raman_time + 0.3 * us + wait_time
 
                 # phase1_compensated = mod_amp * np.sin(2.0 * np.pi * mod_freq * t1 + phase2)
-                phase1_compensated = 0.0
+                # phase1_compensated = 0.0
                 # phase2_compensated = mod_amp * np.sin(2.0 * np.pi * mod_freq * t2 + phase2)
-                phase2_compensated = phase2
+                # phase2_compensated = phase2
 
 
                 ########## First pi/2 Pulse ##########
@@ -3008,21 +3149,43 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         cleanup_needed = True
         is_live_mode = (self.AWG_Mode == "live")
         awg_enabled = self.awg_enabled
+        awg_repeat_per_scan_point = self.awg_repeat_per_scan_point  # NEW
+        awg_cycle_len = self.awg_cycle_len  # NEW
+
 
         try:
             self.core.reset()
 
+            # 2026/9/1 AM: for 2D time scans
+            # If X and Y both drive the same on_param (e.g. two Raman-time
+            # constituents), capture its original static default -- FixedOffset,
+            # already excluding both -- before either loop overwrites it.
+            combined_xy_target = (scan_idx != -1 and scan_idx == scan_idx_y)
+            raman_fixed_offset = float(defaults[scan_idx]) if combined_xy_target else 0.0
+
             # Outer loop over Y (Rows)
             for j in range(len(scan_vals_y)):
-                if scan_idx_y != -1:
+                if scan_idx_y != -1 and not combined_xy_target:
                     defaults[scan_idx_y] = float(scan_vals_y[j])
 
                 # Inner loop over X (Columns: Left to Right)
-                for i in range(len(scan_vals)): # also, 1D scan uses this loop
-                    # print("[DIAGNOSTIC] Executing point (", i, ",", j, ")...")
+                for i in range(len(scan_vals)):  # also, 1D scan uses this loop
 
-                    if scan_idx != -1:
+                    if combined_xy_target:
+                        defaults[scan_idx] = float(scan_vals[i]) + float(scan_vals_y[j]) + raman_fixed_offset
+                    elif scan_idx != -1:
                         defaults[scan_idx] = float(scan_vals[i])
+            # # Outer loop over Y (Rows)
+            # for j in range(len(scan_vals_y)):
+            #     if scan_idx_y != -1:
+            #         defaults[scan_idx_y] = float(scan_vals_y[j])
+            #
+            #     # Inner loop over X (Columns: Left to Right)
+            #     for i in range(len(scan_vals)): # also, 1D scan uses this loop
+            #         # print("[DIAGNOSTIC] Executing point (", i, ",", j, ")...")
+            #
+            #         if scan_idx != -1:
+            #             defaults[scan_idx] = float(scan_vals[i])
 
                     # Flat iteration counter for row-major order
                     flat_iter = (j * len(scan_vals)) + i
@@ -3104,8 +3267,14 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                         self.AllZcalibFitter()
 
                     # Live Mode Hook
+                    # if awg_enabled and is_live_mode:
+                    #     self.load_awg_step_rpc(flat_iter, len(scan_vals) * len(scan_vals_y), 0)
                     if awg_enabled and is_live_mode:
-                        self.load_awg_step_rpc(flat_iter, len(scan_vals) * len(scan_vals_y), 0)
+                        if awg_repeat_per_scan_point:
+                            step_idx = flat_iter % awg_cycle_len
+                        else:
+                            step_idx = flat_iter
+                        self.load_awg_step_rpc(step_idx, len(scan_vals) * len(scan_vals_y), 0)
 
                     # Timing & Safety
                     self.core.break_realtime()
