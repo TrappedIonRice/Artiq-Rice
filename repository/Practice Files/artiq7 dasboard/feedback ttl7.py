@@ -9,31 +9,31 @@ from artiq.language.core import now_mu, delay, at_mu, parallel, sequential
 
 class DynamicSizeROIFpga3(EnvExperiment):
     def build(self):
-        # 1. 注册硬件设备
+        
         self.setattr_device('core')
-        self.setattr_device('ttl0')      # 相机触发输入
-        self.setattr_device('grabber0')  # 图像抓取
-        self.setattr_device('ttl3')      # 脉冲计数输入通道
-        self.setattr_device('ttl5')      # 控制输出
+        self.setattr_device('ttl0')     
+        self.setattr_device('grabber0') 
+        self.setattr_device('ttl3')     
+        self.setattr_device('ttl5')      
 
-        # 2. Dashboard 界面直接可调参数
+       
         self.setattr_argument("num_cycles", NumberValue(default=5100, step=1))
-        self.setattr_argument("threshold_val", NumberValue(default=520, step=1))  # 单像素平均 Count 阈值
+        self.setattr_argument("threshold_val", NumberValue(default=520, step=1)) 
 
-        # ROI 14 坐标设置 (通道 14)
+        # 
         self.setattr_argument("roi14_x0", NumberValue(default=75, step=1))
         self.setattr_argument("roi14_y0", NumberValue(default=13, step=1))
         self.setattr_argument("roi14_x1", NumberValue(default=81, step=1))
         self.setattr_argument("roi14_y1", NumberValue(default=19, step=1))
 
-        # ROI 15 坐标设置 (通道 15)
+        # R
         self.setattr_argument("roi15_x0", NumberValue(default=154, step=1))
         self.setattr_argument("roi15_y0", NumberValue(default=4, step=1))
         self.setattr_argument("roi15_x1", NumberValue(default=160, step=1))
         self.setattr_argument("roi15_y1", NumberValue(default=10, step=1))
 
     def setup_dashboard_plotting(self):
-        """初始化 Dashboard 3 色图表数据集"""
+       
         self.set_dataset("ROI_Plot_Blue.x_vals", [], broadcast=True, archive=True, persist=True)
         self.set_dataset("ROI_Plot_Blue.y_vals", [], broadcast=True, archive=True, persist=True)
         self.set_dataset("ROI_Plot_Blue.yerr_vals", [], broadcast=True, archive=True, persist=True)
@@ -55,8 +55,7 @@ class DynamicSizeROIFpga3(EnvExperiment):
 
     @rpc(flags={"async"})
     def update_roi_batch(self, avg_pixel_count: TFloat, std_err: TFloat, batch_avg_t_mu: TInt64, cnt_roi15: TInt32, cnt_roi14: TInt32, ttl3_sum: TInt32):
-        """ 优化后的 RPC：Kernel 内部每攒满 100 帧才触发一次 """
-        #  修改点：以第一个批次的平均时间作为 T0 点（保证第 1 个点时间恰好为 0.0s）
+        
         if self.t0_avg_mu is None:
             self.t0_avg_mu = batch_avg_t_mu
 
@@ -187,7 +186,7 @@ class DynamicSizeROIFpga3(EnvExperiment):
             raw14 = roi_buf[14]
             raw15 = roi_buf[15]
 
-            # 3. ROI 逻辑切换
+            # 
             if active_roi == 15:
                 if raw15 > raw_threshold_15:
                     active_roi = 14
@@ -202,19 +201,19 @@ class DynamicSizeROIFpga3(EnvExperiment):
             with parallel:
                 t_gate_end = self.ttl3.gate_rising(20 * us)
                 with sequential:
-                    delay(1 * us)  # 确保闸门已完全打开
+                    delay(1 * us)  #
                     if active_roi == 15:
                         chosen_raw = raw15
                         self.ttl5.off()
                     else:
                         chosen_raw = raw14
-                        self.ttl5.pulse(10 * us)  # 切换到 ROI 14 时触发脉冲！
+                        self.ttl5.pulse(10 * us)  # 
 
-            # 6. 读取脉冲计数
+            # 
             pulse_cnt = self.ttl3.count(t_gate_end)
             self.ttl3_counts[count] = pulse_cnt
 
-            # 7. 100 帧批处理 RPC
+            #
             if active_roi == 15:
                 px_val = chosen_raw / float(self.pixels_roi15)
                 batch_cnt_15 += 1
@@ -223,7 +222,7 @@ class DynamicSizeROIFpga3(EnvExperiment):
                 batch_cnt_14 += 1
 
             batch_sum_pixel += px_val
-            batch_sq_sum_pixel += px_val * px_val  # 累加平方项
+            batch_sq_sum_pixel += px_val * px_val  # square
             batch_ttl3_sum += pulse_cnt
 
             if batch_count == 0:
