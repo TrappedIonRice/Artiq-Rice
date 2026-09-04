@@ -37,7 +37,7 @@ class Differentual3(EnvExperiment):
         self.setattr_argument("roi15_y1", NumberValue(default=10, step=1))
 
     def setup_dashboard_plotting(self):
-        """初始化 3 个 Live Plot 数据集"""
+        
         #  ROI14 average
         self.set_dataset("ROI14_Plot.x_vals", [], broadcast=True, archive=True, persist=True)
         self.set_dataset("ROI14_Plot.y_vals", [], broadcast=True, archive=True, persist=True)
