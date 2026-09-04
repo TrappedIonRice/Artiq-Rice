@@ -18,7 +18,7 @@ class DynamicSizeROIFpga(EnvExperiment):
 
         # Dashboard 
         self.setattr_argument("num_cycles", NumberValue(default=5100, step=1))
-        self.setattr_argument("threshold_val", NumberValue(default=520, step=1))  # 单像素平均 Count 阈值
+        self.setattr_argument("threshold_val", NumberValue(default=520, step=1))  
 
         # ROI 14 on dashboard
         self.setattr_argument("roi14_x0", NumberValue(default=75, step=1))
