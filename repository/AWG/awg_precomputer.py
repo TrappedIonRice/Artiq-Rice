@@ -484,7 +484,7 @@ class awgPrecomputer(EnvExperiment):
                               Scannable(NoScan(value=100.0), global_min=-400.0 * MHz, global_max=400.0 * MHz,
                                         global_step=1e-9 * MHz, unit="MHz", ndecimals=6), group="X-Axis Scan")
         self.setattr_argument("ramanAmp",
-                              Scannable(NoScan(value=0.5), global_min=0.0, global_max=1.0, global_step=1e-9, unit="",
+                              Scannable(NoScan(value=0.5), global_min=-1.0, global_max=1.0, global_step=1e-9, unit="",
                                         ndecimals=6), group="X-Axis Scan")
 
         # --- Y-Axis Targets ---
@@ -500,7 +500,7 @@ class awgPrecomputer(EnvExperiment):
                               Scannable(NoScan(value=100.0), global_min=-400.0 * MHz, global_max=400.0 * MHz,
                                         global_step=1e-9 * MHz, unit="MHz", ndecimals=6), group="Y-Axis Scan")
         self.setattr_argument("ramanAmp_y",
-                              Scannable(NoScan(value=0.5), global_min=0.0, global_max=1.0, global_step=1e-9, unit="",
+                              Scannable(NoScan(value=0.5), global_min=-1.0, global_max=1.0, global_step=1e-9, unit="",
                                         ndecimals=6), group="Y-Axis Scan")
 
     def _parse_scannable(self, scan_var_name, is_y=False):

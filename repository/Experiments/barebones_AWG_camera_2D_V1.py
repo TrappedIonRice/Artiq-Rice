@@ -459,6 +459,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.PiBy2Time435_1mod = 0.0
         self.PiBy2Time435_2mod = 0.0
 
+
     def _fetch_static_datasets(self):
         def numeric(x):
             if hasattr(x, "get"): return x.get()
@@ -878,6 +879,31 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
         # Remap AWG targets to native internal variables
         # if is_awg_scan:
+
+        # 2026/9/3 AM: regex function for awg map with flexible naming convention
+        import re
+
+        def _resolve_awg_kernel_target(dataset_name):
+            """Maps AWG.ch<N>.<name> to the fixed kernel on_param it drives, based
+            on the variable's type prefix (T/V/f/ph) rather than an enumerated list
+            of exact names -- Tgate, Tprep, Vprep, fdet, ph2, etc. all resolve
+            automatically with no changes needed here."""
+            m = re.search(r"AWG\.ch([1-4])\.(\w+)", dataset_name)
+            if not m:
+                return dataset_name
+            channel, base_name = m.group(1), m.group(2).lower()
+            if base_name.startswith('t'):
+                return "RamanTime"
+            if base_name.startswith('v'):
+                return {'1': "Amplitude355_Raman1", '2': "Amplitude355_RamanA16",
+                        '3': "Amplitude355_RamanB2", '4': "Amplitude355_RamanA15"}[channel]
+            if base_name.startswith('f'):
+                return {'1': "Frequency355_Raman1", '2': "Frequency355_RamanA16",
+                        '3': "Frequency355_RamanB2", '4': "Frequency355_RamanA15"}[channel]
+            if base_name.startswith('ph'):
+                return "Phase1"
+            return dataset_name
+
         if is_awg_native_scan:
 
             ## old version of awg_map
@@ -896,38 +922,43 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             # 2026/8/27 AM: Ensuring a proxy map is made between parameters of the AWG to that in Artiq so that scannables are well defined.
             # currently the mapping may not be the most robust. Capped to 10 because afterwards the numbers can get tricky to distinguish.
 
-            awg_map = { }
-            # times
-            awg_map.update({"AWG.ch1.T" + str(i) : "RamanTime" for i in range(10) })
-            awg_map.update({"AWG.ch2.T" + str(i): "RamanTime" for i in range(10) })
-            awg_map.update({"AWG.ch3.T" + str(i): "RamanTime" for i in range(10) })
-            awg_map.update({"AWG.ch4.T" + str(i): "RamanTime" for i in range(10) })
-            # amplitudes
-            awg_map.update({"AWG.ch1.V" + str(i): "Amplitude355_Raman1" for i in range(10) })
-            awg_map.update({"AWG.ch2.v" + str(i): "Amplitude355_RamanA16" for i in range(10) })
-            awg_map.update({"AWG.ch3.V" + str(i): "Amplitude355_RamanB2" for i in range(10) })
-            awg_map.update({"AWG.ch4.V" + str(i): "Amplitude355_RamanA15" for i in range(10) })
-            # frequencies
-            awg_map.update({"AWG.ch1.f0" + str(i): "Frequency355_Raman1" for i in range(10) })
-            awg_map.update({"AWG.ch2.f0" + str(i): "Frequency355_RamanA16" for i in range(10) })
-            awg_map.update({"AWG.ch3.f0" + str(i): "Frequency355_RamanB2" for i in range(10) })
-            awg_map.update({"AWG.ch4.f0" + str(i): "Frequency355_RamanA15" for i in range(10) })
-            # phases
-            awg_map.update({"AWG.ch1.ph" + str(i): "Phase1" for i in range(10) })
-            awg_map.update({"AWG.ch2.ph" + str(i): "Phase1" for i in range(10) })
-            awg_map.update({"AWG.ch3.ph" + str(i): "Phase1" for i in range(10) })
-            awg_map.update({"AWG.ch4.ph" + str(i): "Phase1" for i in range(10) })
+            # awg_map = { }
+            # # times
+            # awg_map.update({"AWG.ch1.T" + str(i) : "RamanTime" for i in range(10) })
+            # awg_map.update({"AWG.ch2.T" + str(i): "RamanTime" for i in range(10) })
+            # awg_map.update({"AWG.ch3.T" + str(i): "RamanTime" for i in range(10) })
+            # awg_map.update({"AWG.ch4.T" + str(i): "RamanTime" for i in range(10) })
+            # # amplitudes
+            # awg_map.update({"AWG.ch1.V" + str(i): "Amplitude355_Raman1" for i in range(10) })
+            # awg_map.update({"AWG.ch2.v" + str(i): "Amplitude355_RamanA16" for i in range(10) })
+            # awg_map.update({"AWG.ch3.V" + str(i): "Amplitude355_RamanB2" for i in range(10) })
+            # awg_map.update({"AWG.ch4.V" + str(i): "Amplitude355_RamanA15" for i in range(10) })
+            # # frequencies
+            # awg_map.update({"AWG.ch1.f0" + str(i): "Frequency355_Raman1" for i in range(10) })
+            # awg_map.update({"AWG.ch2.f0" + str(i): "Frequency355_RamanA16" for i in range(10) })
+            # awg_map.update({"AWG.ch3.f0" + str(i): "Frequency355_RamanB2" for i in range(10) })
+            # awg_map.update({"AWG.ch4.f0" + str(i): "Frequency355_RamanA15" for i in range(10) })
+            # # phases
+            # awg_map.update({"AWG.ch1.ph" + str(i): "Phase1" for i in range(10) })
+            # awg_map.update({"AWG.ch2.ph" + str(i): "Phase1" for i in range(10) })
+            # awg_map.update({"AWG.ch3.ph" + str(i): "Phase1" for i in range(10) })
+            # awg_map.update({"AWG.ch4.ph" + str(i): "Phase1" for i in range(10) })
+            #
+            #
+            # for awg_var, raman_var in awg_map.items():
+            #     if awg_var in kernel_scan_target:
+            #         kernel_scan_target = raman_var
+            #         break
+            # if self.is_2d_scan:
+            #     for awg_var, raman_var in awg_map.items():
+            #         if awg_var in kernel_scan_target_y:
+            #             kernel_scan_target_y = raman_var
+            #             break
 
-
-            for awg_var, raman_var in awg_map.items():
-                if awg_var in kernel_scan_target:
-                    kernel_scan_target = raman_var
-                    break
+        # 2026/9/3 AM: new flexible naming convention incorporated into awg map
+            kernel_scan_target = _resolve_awg_kernel_target(kernel_scan_target)
             if self.is_2d_scan:
-                for awg_var, raman_var in awg_map.items():
-                    if awg_var in kernel_scan_target_y:
-                        kernel_scan_target_y = raman_var
-                        break
+                kernel_scan_target_y = _resolve_awg_kernel_target(kernel_scan_target_y)
 
         overrides = {}
         if not getattr(self, "SBCcheck", False): overrides["SBCTime"] = 0.0
@@ -1402,67 +1433,161 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #     delay(0.03 * ms)
                 #     self.urukul1_ch1.sw.off()
 
-                # # # # # Outer 1
-                self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
-                for cyc in range(50):
-                    self.urukul2_ch0.sw.on()
-                    self.ttl6.on()
-                    # delay(SBCTime)
-                    delay(0.01*ms)
-                    # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
-                    self.urukul2_ch0.sw.off()
-                    self.ttl6.off()
-                    # GOP
-                    self.urukul2_ch2.sw.on()
-                    delay(0.05 * ms)  # prev 0.03ms need strong OP power
-                    self.urukul2_ch2.sw.off()
-
-                # # # # # Inner 1
-                # # # #
-                self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
-                for cyc in range(50):
-                    self.urukul2_ch0.sw.on()
-                    self.ttl6.on()
-                    # self.ttl5.on()
-                    # delay(SBCTime)
-                    delay(0.005 * ms)
-                    self.urukul2_ch0.sw.off()
-                    self.ttl6.off()
-
-                    self.urukul2_ch2.sw.on()  # GOP
-                    delay(0.05 * ms)
-                    self.urukul2_ch2.sw.off()
+                # # # # # # Outer 1
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # for cyc in range(50):
+                #     self.urukul2_ch0.sw.on()
+                #     self.ttl6.on()
+                #     # delay(SBCTime)
+                #     delay(0.01*ms)
+                #     # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
+                #     self.urukul2_ch0.sw.off()
+                #     self.ttl6.off()
+                #     # GOP
+                #     self.urukul2_ch2.sw.on()
+                #     delay(0.05 * ms)  # prev 0.03ms need strong OP power
+                #     self.urukul2_ch2.sw.off()
+                #
+                # # # # # # Inner 1
                 # # # # #
-                # #  # # # Outer1 2nd stage
-                self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
-                for cyc in range(25):
-                    self.urukul2_ch0.sw.on()
-                    self.ttl6.on()
-                    delay(0.025* ms)
-                    # delay(SBCTime)
-                    # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
-                    self.urukul2_ch0.sw.off()
-                    self.ttl6.off()
-                    # GOP
-                    self.urukul2_ch2.sw.on()
-                    delay(0.05 * ms)  # prev 0.03ms need strong OP power
-                    self.urukul2_ch2.sw.off()
-                # # # # # # #
-                # # # # # # # # #
-                # # # Inner1 2nd stage
-                self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
-                for cyc in range(15):
-                    self.urukul2_ch0.sw.on()
-                    self.ttl6.on()
-                    # self.ttl5.on()
-                    delay(0.02 * ms)
-                    self.urukul2_ch0.sw.off()
-                    self.ttl6.off()
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # for cyc in range(50):
+                #     self.urukul2_ch0.sw.on()
+                #     self.ttl6.on()
+                #     # self.ttl5.on()
+                #     # delay(SBCTime)
+                #     delay(0.005 * ms)
+                #     self.urukul2_ch0.sw.off()
+                #     self.ttl6.off()
+                #
+                #     self.urukul2_ch2.sw.on()  # GOP
+                #     delay(0.05 * ms)
+                #     self.urukul2_ch2.sw.off()
+                # # # # # #
+                # # #  # # # Outer1 2nd stage
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # for cyc in range(25):
+                #     self.urukul2_ch0.sw.on()
+                #     self.ttl6.on()
+                #     delay(0.025* ms)
+                #     # delay(SBCTime)
+                #     # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
+                #     self.urukul2_ch0.sw.off()
+                #     self.ttl6.off()
+                #     # GOP
+                #     self.urukul2_ch2.sw.on()
+                #     delay(0.05 * ms)  # prev 0.03ms need strong OP power
+                #     self.urukul2_ch2.sw.off()
+                # # # # # # # #
+                # # # # # # # # # #
+                # # # # Inner1 2nd stage
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # for cyc in range(15):
+                #     self.urukul2_ch0.sw.on()
+                #     self.ttl6.on()
+                #     # self.ttl5.on()
+                #     delay(0.02 * ms)
+                #     self.urukul2_ch0.sw.off()
+                #     self.ttl6.off()
+                #
+                #     # GOP
+                #     self.urukul2_ch2.sw.on()
+                #     delay(0.05 * ms)
+                #     self.urukul2_ch2.sw.off()
 
-                    # GOP
-                    self.urukul2_ch2.sw.on()
-                    delay(0.05 * ms)
-                    self.urukul2_ch2.sw.off()
+
+                ## For multiple DDS, simultaneous SBC ( B1, A16, B2 )
+
+                    # # # # # Outer 1
+                    self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                    self.urukul2_ch1.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                    self.urukul1_ch3.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+
+                    for cyc in range(50):
+                        self.urukul2_ch0.sw.on()
+                        self.urukul2_ch1.sw.on()
+                        self.urukul1_ch3.sw.on()
+                        self.ttl6.on()
+                        # delay(SBCTime)
+                        delay(0.01 * ms)
+                        # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
+                        self.urukul2_ch0.sw.off()
+                        self.urukul2_ch1.sw.off()
+                        self.urukul1_ch3.sw.off()
+                        self.ttl6.off()
+                        # GOP
+                        self.urukul2_ch2.sw.on()
+                        delay(0.05 * ms)  # prev 0.03ms need strong OP power
+                        self.urukul2_ch2.sw.off()
+
+                    # # # # # Inner 1
+                    # # # #
+                    self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                    self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                    self.urukul1_ch3.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+
+                    for cyc in range(50):
+                        self.urukul2_ch0.sw.on()
+                        self.urukul2_ch1.sw.on()
+                        self.urukul1_ch3.sw.on()
+
+                        self.ttl6.on()
+                        # self.ttl5.on()
+                        # delay(SBCTime)
+                        delay(0.005 * ms)
+                        self.urukul2_ch0.sw.off()
+                        self.urukul2_ch1.sw.off()
+                        self.urukul1_ch3.sw.off()
+                        self.ttl6.off()
+
+                        self.urukul2_ch2.sw.on()  # GOP
+                        delay(0.05 * ms)
+                        self.urukul2_ch2.sw.off()
+                    # # # # #
+                    # #  # # # Outer1 2nd stage
+                    self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                    self.urukul2_ch1.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                    self.urukul1_ch3.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+
+                    for cyc in range(25):
+                        self.urukul2_ch0.sw.on()
+                        self.urukul2_ch1.sw.on()
+                        self.urukul1_ch3.sw.on()
+                        self.ttl6.on()
+                        delay(0.025 * ms)
+                        # delay(SBCTime)
+                        # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
+                        self.urukul2_ch0.sw.off()
+                        self.urukul2_ch1.sw.off()
+                        self.urukul1_ch3.sw.off()
+                        self.ttl6.off()
+                        # GOP
+                        self.urukul2_ch2.sw.on()
+                        delay(0.05 * ms)  # prev 0.03ms need strong OP power
+                        self.urukul2_ch2.sw.off()
+                    # # # # # # #
+                    # # # # # # # # #
+                    # # # Inner1 2nd stage
+                    self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                    self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                    self.urukul1_ch3.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+
+                    for cyc in range(15):
+                        self.urukul2_ch0.sw.on()
+                        self.urukul2_ch1.sw.on()
+                        self.urukul1_ch3.sw.on()
+                        self.ttl6.on()
+                        # self.ttl5.on()
+                        delay(0.02 * ms)
+                        self.urukul2_ch0.sw.off()
+                        self.urukul2_ch1.sw.off()
+                        self.urukul1_ch3.sw.off()
+                        self.ttl6.off()
+
+                        # GOP
+                        self.urukul2_ch2.sw.on()
+                        delay(0.05 * ms)
+                        self.urukul2_ch2.sw.off()
 
 
                 # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
@@ -1693,10 +1818,10 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 delay(OP_time)
                 # delay(0.05*ms)
                 delay_mu(1)
-                self.urukul2_ch2.set(frequency=OP_freq, amplitude=0.0001, phase_mode=2)
-                self.urukul2_ch2.set_att(30 * dB)
+                # self.urukul2_ch2.set(frequency=OP_freq, amplitude=0.0001, phase_mode=2)
+                # self.urukul2_ch2.set_att(30 * dB)
                 self.urukul2_ch2.sw.off()
-                self.zotino0.write_dac(26, 0.0)  # 26/07/13 gt: turning off GOP switch
+                # self.zotino0.write_dac(26, 0.0)  # 26/07/13 gt: turning off GOP switch
                 self.zotino0.load()
                 delay(0.5 * ms)
 
@@ -2636,6 +2761,23 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 self.ttl6.on()  # Raman 2 on
                 delay(0.3 * us)  # AOM delay
 
+
+                # # ## For bosonic displacement state prep and 2D probe
+                # delay(0.19*ms) # SDF prep
+                #
+                # # self.urukul2_ch2.set(frequency=OP_freq, amplitude=0.8, phase_mode=2)
+                # self.urukul2_ch2.sw.on()  # GOP
+                # # self.urukul2_ch2.set_att(0*dB)  # GOP
+                # delay(0.05*ms) # OP
+                # # self.urukul2_ch2.set_att(30*dB)  # GOP
+                # self.urukul2_ch2.sw.off()  # GOP
+                #
+                # #basis prep
+                # # delay(0.0023*ms)
+                #
+                # delay(Raman_time - 0.19*ms- 0.05*ms) # remaining 2D probe
+
+                # # standard
                 delay(Raman_time)
 
                 delay(-0.3 * us) # global was turning off after individual
@@ -3410,6 +3552,12 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
     @rpc(flags={"async"})
     def host_push_results(self, histpoints, i, j=0, AllZ_calib_flag=False):
         is_init_point = (int(i) == 0 and int(j) == 0)
+
+        # 2026/9/4 AM: storing histograms
+        if np.sum(self.scanHistogramList) == 0:  # trivial condition to get rid of 0 array that was intialized
+            self.scanHistogramList = np.array([histpoints])
+        else:
+            self.scanHistogramList = np.vstack((self.scanHistogramList, [histpoints]))
 
         # Process counts for current step
         if self.CheckThresholding:
