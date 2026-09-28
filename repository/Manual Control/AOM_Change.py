@@ -6,8 +6,12 @@ class AOMChange(EnvExperiment):
         self.setattr_device("urukul0_cpld")
         self.setattr_device("urukul0_ch1") # Doppler AOM
 
+        self.setattr_device("ttl6")  # new Raman2 switch
+
         self.setattr_argument("u0ch1_Doppler", BooleanValue(default=False), tooltip="Doppler")
         self.setattr_argument("DopplerAmp",NumberValue(default=0.2, min=0, max=0.6, ndecimals=3))
+        self.setattr_argument("checkRaman2", BooleanValue(default=False))
+
 
     def prepare(self):
         # self.loadingDopplerAmp = self.get_dataset("Loading.DopplerAmp")
@@ -26,6 +30,14 @@ class AOMChange(EnvExperiment):
             self.urukul0_ch1.set_att(30 * dB)
             self.urukul0_ch1.sw.off()
 
+        # Turn on Raman 2
+        if self.checkRaman2:
+            self.ttl6.output()
+            self.ttl6.on()
+        else:
+            self.ttl6.output()
+            self.ttl6.off()
+
         delay(1 * ms)
 
     @kernel
@@ -33,6 +45,8 @@ class AOMChange(EnvExperiment):
         self.core.reset()
         delay(1 * ms)
         self.turn_on_nonRFDDS()
+
+
 
     @rpc(flags={"async"})
     def check_termination(self):

@@ -20,10 +20,17 @@ class RFControl_Arduino(EnvExperiment):
         self.amplitude=self.get_dataset("RFamp_Arduino")
         #self.setattr_device("scheduler")
         self.setattr_device("ccb")  # needed to make plots displaying the counts
+        self.setattr_device("scheduler")
         self.serialobj = serial.Serial(port="COM2",baudrate=9600)
 
 
     def prepare(self):
+        # Terminate any running Idler jobs before setting up the experiment schedule
+        for rid, job in self.scheduler.get_status().items():
+            if job["expid"]["class_name"] == "Idle369On355Pulsed":
+                print(f"[EXP SCHEDULE] Found active idler (RID {rid}). Requesting termination...")
+                self.scheduler.request_termination(rid)
+
         # amplitude ramp plot
         self.set_dataset("RFamp_Arduino.Amplitude", np.full(int(self.num_points), float(np.nan)), broadcast=True, archive=True)
         self.set_dataset("RFamp_Arduino.Time", np.full(int(self.num_points), float(np.nan)), broadcast=True, archive=True)

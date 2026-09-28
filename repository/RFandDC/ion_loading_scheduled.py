@@ -14,55 +14,26 @@ class LoadingSchedule(EnvExperiment):
                 self.time_step = self.get_dataset("Loading.RFramp_timestep")
                 self.num_points = self.get_dataset("Loading.RFramp_numpoints")
                 self.loading_DopplerAmp = self.get_dataset("Loading.DopplerAmp")
+                self.target_ULE369freq_Loading = self.get_dataset("Loading.ULE369_freq")
 
                # self.target_min_amp = self.get_dataset("Loading.target_min_amplitude")
 
+        def prepare(self):
+                # Terminate any running Idler jobs before setting up the experiment schedule
+                for rid, job in self.scheduler.get_status().items():
+                        if job["expid"]["class_name"] == "Idle369On355Pulsed":
+                                print(f"[EXP SCHEDULE] Found active idler (RID {rid}). Requesting termination...")
+                                self.scheduler.request_termination(rid)
+
         def run(self):
 
-                expid_1 = {
-                        "file": "RFandDC/dc_assign_for_loading.py",
-                        "class_name": "Loading",
-                        "arguments": {},
-                        "log_level": 0,
-                        "repo_rev": self.scheduler.expid["repo_rev"],
-                }
-                expid_2 = {
-                        "file": "RFandDC/DCelectrodes.py",
-                        "class_name": "DC_Control",
-                        "arguments": {},
-                        "log_level": self.scheduler.expid["log_level"],
-                        "repo_rev": self.scheduler.expid["repo_rev"],
-                }
-
-                expid_3 = {
-                        "file": "RFandDC/RFramp.py",
-                        "class_name": "RFControl_Arduino",
-                        "arguments": {"ramp_rate": self.ramp_rate,
-                                      "target_amplitude": self.target_amp,
-                                      "time_step": self.time_step,
-                                       "num_points": self.num_points
+                expid_ULE369controlLoading = {
+                        "file": "Manual Control/ULE369_Ramp.py",
+                        "class_name": "ULE369_control",
+                        "arguments": {"ramp_rate": 2.0 * MHz,
+                                      "target_frequency": self.target_ULE369freq_Loading,
+                                      "time_step": 100 * ms
                                       },
-                        "log_level": 0,
-                        "repo_rev": self.scheduler.expid["repo_rev"],
-                }
-
-                expid_AOMcontrolLoad = {
-                        "file": "Manual Control/AOM_Control.py",
-                        "class_name": "AOMControl",
-                        "arguments": {
-                                "u0ch1_Doppler": True,
-                                "u0ch3_options": "Detection",
-                                "u0ch3_Detection_or_Tickler": False,
-                                "u2ch2_OP": False,
-                                "u1ch1_LOP": False,
-                                "u1ch2_MW": False,
-                                "u1ch3_355_RamanB2": False,
-                                "u2ch0_355_Raman1": False,
-                                "u2ch1_355_RamanA16": False,
-                                "ttl6_355_Raman2": True,
-                                "u2ch3_369_ULE": False,
-                                "u2ch2_RR_lock": False
-                        },
                         "log_level": 0,
                         "repo_rev": self.scheduler.expid["repo_rev"],
                 }
@@ -72,8 +43,36 @@ class LoadingSchedule(EnvExperiment):
                         "class_name": "AOMChange",
                         "arguments": {
                                 "u0ch1_Doppler": True,  # 25/12/17 gt: turn on Doppler (loading)
-                                "DopplerAmp": self.loading_DopplerAmp
+                                "DopplerAmp": self.loading_DopplerAmp,
+                                "checkRaman2": True
                         },
+                        "log_level": 0,
+                        "repo_rev": self.scheduler.expid["repo_rev"],
+                }
+
+                expid_set_loading_DCs = {
+                        "file": "RFandDC/dc_assign_for_loading.py",
+                        "class_name": "Loading",
+                        "arguments": {},
+                        "log_level": 0,
+                        "repo_rev": self.scheduler.expid["repo_rev"],
+                }
+                expid_apply_DCs = {
+                        "file": "RFandDC/DCelectrodes.py",
+                        "class_name": "DC_Control",
+                        "arguments": {},
+                        "log_level": self.scheduler.expid["log_level"],
+                        "repo_rev": self.scheduler.expid["repo_rev"],
+                }
+
+                expid_loading_RF_ramp = {
+                        "file": "RFandDC/RFramp.py",
+                        "class_name": "RFControl_Arduino",
+                        "arguments": {"ramp_rate": self.ramp_rate,
+                                      "target_amplitude": self.target_amp,
+                                      "time_step": self.time_step,
+                                       "num_points": self.num_points
+                                      },
                         "log_level": 0,
                         "repo_rev": self.scheduler.expid["repo_rev"],
                 }
@@ -92,10 +91,11 @@ class LoadingSchedule(EnvExperiment):
 
                 print(self.scheduler.expid)
 
-                self.scheduler.submit("main", expid_1)
-                self.scheduler.submit("main", expid_2)
-                self.scheduler.submit("main", expid_3)
-                self.scheduler.submit("main", expid_AOMcontrolLoad)
+                self.scheduler.submit("main", expid_ULE369controlLoading)
                 self.scheduler.submit('main', expid_AOMchangeLoad)
+                self.scheduler.submit("main", expid_set_loading_DCs)
+                self.scheduler.submit("main", expid_apply_DCs)
+                self.scheduler.submit("main", expid_loading_RF_ramp)
+
 
                 #self.scheduler.submit("main", expid_4)

@@ -1,54 +1,54 @@
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Define your data points
-x = np.array([0,
-0.08,
-0.14,
-0.18,
-0.22,
-0.26
-
-])
-y = np.array([
-
-149.338490,
-149.106435,
-149.051375,
-149.016615,
-149.030829,
-149.070304
-])
-
-
-# Perform a quadratic fit (2nd-degree polynomial)
-coefficients = np.polyfit(x, y, 2)
-
-# Get the fitted polynomial function
-polynomial = np.poly1d(coefficients)
-
-# Generate x values for plotting the fitted curve
-x_fit = np.linspace(min(x), max(x), 100)
-y_fit = polynomial(x_fit)
-
-# Plot the original data points and the quadratic fit
-plt.scatter(x, y, color='red', label='Data Points')
-plt.plot(x_fit, y_fit, label='Quadratic Fit', color='blue')
-
-
-# Add labels and legend
-plt.xlabel('x')
-plt.ylabel('y')
-plt.title('Quadratic Fit')
-plt.legend()
-
-# Display the plot
-plt.show()
-
-# Print the coefficients of the quadratic fit
-print("Quadratic fit coefficients: a = {}, b = {}, c = {}".format(coefficients[0], coefficients[1], coefficients[2]))
-print("Min B field current {0:.3f}".format(-coefficients[1]/(2*coefficients[0])))
-
+# import numpy as np
+# import matplotlib.pyplot as plt
+#
+# # Define your data points
+# x = np.array([0,
+# 0.08,
+# 0.14,
+# 0.18,
+# 0.22,
+# 0.26
+#
+# ])
+# y = np.array([
+#
+# 149.338490,
+# 149.106435,
+# 149.051375,
+# 149.016615,
+# 149.030829,
+# 149.070304
+# ])
+#
+#
+# # Perform a quadratic fit (2nd-degree polynomial)
+# coefficients = np.polyfit(x, y, 2)
+#
+# # Get the fitted polynomial function
+# polynomial = np.poly1d(coefficients)
+#
+# # Generate x values for plotting the fitted curve
+# x_fit = np.linspace(min(x), max(x), 100)
+# y_fit = polynomial(x_fit)
+#
+# # Plot the original data points and the quadratic fit
+# plt.scatter(x, y, color='red', label='Data Points')
+# plt.plot(x_fit, y_fit, label='Quadratic Fit', color='blue')
+#
+#
+# # Add labels and legend
+# plt.xlabel('x')
+# plt.ylabel('y')
+# plt.title('Quadratic Fit')
+# plt.legend()
+#
+# # Display the plot
+# plt.show()
+#
+# # Print the coefficients of the quadratic fit
+# print("Quadratic fit coefficients: a = {}, b = {}, c = {}".format(coefficients[0], coefficients[1], coefficients[2]))
+# print("Min B field current {0:.3f}".format(-coefficients[1]/(2*coefficients[0])))
+#
 
 
 

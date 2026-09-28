@@ -2,6 +2,7 @@ from artiq.experiment import *
 import numpy as np
 import serial
 import time as timelib
+import logging
 
 
 class ULE369_control(EnvExperiment):
@@ -9,6 +10,7 @@ class ULE369_control(EnvExperiment):
 
         self.setattr_device("core")
         self.setattr_device("urukul2_ch3")
+        self.setattr_device("scheduler")
         # Please make sure to enter the right units.
         # self.setattr_device("core")
         self.lowerlim = 90*MHz  # 0.001V before
@@ -27,6 +29,9 @@ class ULE369_control(EnvExperiment):
         #self.setattr_device("ccb")  # needed to make plots displaying the counts
         #self.serialobj = serial.Serial(port="COM2", baudrate=9600)
 
+        logger = logging.getLogger("artiq.coredevice.comm_kernel")
+        logger.setLevel(logging.WARNING)
+
     def prepare(self):
         # frequency ramp plot
         # self.set_dataset("RFamp_Arduino.frequency", np.full(int(self.num_points), float(np.nan)), broadcast=True,
@@ -36,7 +41,10 @@ class ULE369_control(EnvExperiment):
         # self.int_points = int(self.num_points)
         # command = "${artiq_applet}plot_xy RFamp_Arduino.frequency --x RFamp_Arduino.Time"
         # self.ccb.issue("create_applet", "RF setpoint Ramp", command)
-
+        # for rid, job in self.scheduler.get_status().items():
+        #     if job["expid"]["class_name"] == "Idle369On355Pulsed":
+        #         print(f"[EXP SCHEDULE] Found active idler (RID {rid}). Requesting termination...")
+        #         self.scheduler.request_termination(rid)
 
         pass
 

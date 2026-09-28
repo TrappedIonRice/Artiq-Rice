@@ -21,24 +21,24 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.setattr_device("scheduler")
 
         self.setattr_device("urukul0_cpld")  # Necessary for clock sync
-        self.setattr_device("urukul0_ch0")
+        self.setattr_device("urukul0_ch0") # Raman A16
         self.setattr_device("urukul0_ch1")
-        self.setattr_device("urukul0_ch2")
+        self.setattr_device("urukul0_ch2") # Raman A14
         self.setattr_device("urukul0_ch3")
 
         self.setattr_device("zotino0") # to switch from DDS (+5 V) to AWG (0 V)
 
         self.setattr_device("urukul1_cpld")  # Necessary for clock sync
-        self.setattr_device("urukul1_ch0")
+        self.setattr_device("urukul1_ch0") # Raman B1
         self.setattr_device("urukul1_ch1")  # LOP
         self.setattr_device("urukul1_ch2")  # MW
-        self.setattr_device("urukul1_ch3")  # Raman B2
+        self.setattr_device("urukul1_ch3")  # Raman B3
 
         self.setattr_device("urukul2_cpld")  # Necessary for clock sync
-        self.setattr_device("urukul2_ch0")  # Raman B1
-        self.setattr_device("urukul2_ch1")  # Raman A16
+        self.setattr_device("urukul2_ch0")  # Raman B2
+        self.setattr_device("urukul2_ch1")  # Raman A15
         self.setattr_device("urukul2_ch2")  # OP
-        self.setattr_device("urukul2_ch3")  # A15; was ULE369
+        self.setattr_device("urukul2_ch3")  # ULE369
 
         self.setattr_device("ttl4")  # Camera Trigger
         self.setattr_device("ttl5")  # AWG trigger
@@ -62,16 +62,17 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.mean_rising_edges = 0.0
         self.channel_num = [1]  # Doppler, Det, OP
 
-        # --------------------------------------------#
-        # Electrode config
-        self.originalDCElectrodeValues = self.get_dataset("DC.ElectrodeValues")
-        self.modDCElectrodeValues = self.get_dataset("DC.ElectrodeValues")  # to be modified
-        self.DCElectrodeMapping = self.get_dataset("DC.ElectrodeMapping")
-        self.originalEndcapX = self.get_dataset("Experiment_config.endcapX")
-        self.originalAllY = self.get_dataset("Experiment_config.all_y")
-        self.originalAllZ = self.get_dataset("Experiment_config.all_z")
-        self.originalEndcapAvg = self.get_dataset("Experiment_config.endcap_avg")
-        # -------------------------------------------#
+        # 26/09/25 gt: moved to _init_basics, right after killing idler
+        # # --------------------------------------------#
+        # # Electrode config
+        # self.originalDCElectrodeValues = self.get_dataset("DC.ElectrodeValues")
+        # self.modDCElectrodeValues = self.get_dataset("DC.ElectrodeValues")  # to be modified
+        # self.DCElectrodeMapping = self.get_dataset("DC.ElectrodeMapping")
+        # self.originalEndcapX = self.get_dataset("Experiment_config.endcapX")
+        # self.originalAllY = self.get_dataset("Experiment_config.all_y")
+        # self.originalAllZ = self.get_dataset("Experiment_config.all_z")
+        # self.originalEndcapAvg = self.get_dataset("Experiment_config.endcap_avg")
+        # # -------------------------------------------#
 
         # -------------------------------------------#
         # Experiment parameters setup
@@ -138,6 +139,11 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.setattr_argument("CenterScanMode", EnumerationValue(["linear", "center_out"], default="linear"),
                               group="Scan properties")
         self.setattr_argument("checkLineTrigger", BooleanValue(default=False), group='Scan properties')
+        # When this is turned on, and exactly one barebones variable is being
+        # scanned at the same time as a real AWG scan, the two are combined into
+        # a genuine two-dimensional grid, instead of the AWG simply repeating
+        # itself for averaging.
+        self.setattr_argument("awg_hybrid_2d_scan", BooleanValue(False), group="Scan properties")
 
         # -----Detection-------#
 
@@ -163,6 +169,22 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                                 unit="ms", ndecimals=4), group='OP')
         # --------------------#
 
+        # ----------LOP---------#
+        self.setattr_argument("StatePrepLOP", BooleanValue(default=False), group='LOP')
+        add_scannable("prepfreqLOP",
+                      Scannable(NoScan(value=self.default_prepfreqLOP),
+                                global_min=0.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='LOP')
+        add_scannable("prepampLOP",
+                      Scannable(NoScan(value=self.default_prepampLOP),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='LOP')
+        add_scannable("preptimeLOP",
+                      Scannable(NoScan(value=self.default_preptimeLOP),
+                                global_min=0.00001 * ms,
+                                global_step=1.0e-9 * ms,
+                                unit="ms", ndecimals=4), group='LOP')
+        # --------------------#
 
         # ---------435-----------#
         self.setattr_argument("StatePrep", BooleanValue(default=False), group='435')
@@ -236,28 +258,118 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         # --------------------#
 
 
-        # ---------SBC---------#
-        self.setattr_argument("SBCcheck", BooleanValue(default=self.default_SBCcheck), group='SBC')
+        # ---------SBC Setup; Check in Raman---------#
+        # self.setattr_argument("SBCcheck", BooleanValue(default=self.default_SBCcheck))
         add_scannable("SBCFrequency355_1",
                       Scannable(NoScan(value=self.default_SBCFrequency355_1),
                                 global_min=0.0, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
                                 unit="MHz", ndecimals=7), group='SBC')
-        add_scannable("SBCAmplitude355_1",
-                      Scannable(NoScan(value=self.default_SBCAmplitude355_1),
-                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
-                                unit="", ndecimals=3), group='SBC')
         add_scannable("SBCFrequency355_2",
                       Scannable(NoScan(value=self.default_SBCFrequency355_2),
                                 global_min=0.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
                                 unit="MHz", ndecimals=7), group='SBC')
+
+
+        add_scannable("SBCFrequencyO1",
+                      Scannable(NoScan(value=self.default_SBCFrequencyO1),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyO2",
+                      Scannable(NoScan(value=self.default_SBCFrequencyO2),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyO3",
+                      Scannable(NoScan(value=self.default_SBCFrequencyO3),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyO4",
+                      Scannable(NoScan(value=self.default_SBCFrequencyO4),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyO5",
+                      Scannable(NoScan(value=self.default_SBCFrequencyO5),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyO6",
+                      Scannable(NoScan(value=self.default_SBCFrequencyO6),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyI1",
+                      Scannable(NoScan(value=self.default_SBCFrequencyI1),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyI2",
+                      Scannable(NoScan(value=self.default_SBCFrequencyI2),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyI3",
+                      Scannable(NoScan(value=self.default_SBCFrequencyI3),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyI4",
+                      Scannable(NoScan(value=self.default_SBCFrequencyI4),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyI5",
+                      Scannable(NoScan(value=self.default_SBCFrequencyI5),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+        add_scannable("SBCFrequencyI6",
+                      Scannable(NoScan(value=self.default_SBCFrequencyI6),
+                                global_min=150.0 * MHz, global_max=250.0 * MHz, global_step=1.0e-9 * MHz,
+                                unit="MHz", ndecimals=7), group='SBC')
+
+        add_scannable("SBCAmplitude355_1",
+                      Scannable(NoScan(value=self.default_SBCAmplitude355_1),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
         add_scannable("SBCAmplitude355_2",
                       Scannable(NoScan(value=self.default_SBCAmplitude355_2),
                                 global_min=0.0, global_max=0.8, global_step=1.0e-9,
                                 unit="", ndecimals=3), group='SBC')
+        add_scannable("SBCAmplitude355_3",
+                      Scannable(NoScan(value=self.default_SBCAmplitude355_3),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
+        add_scannable("SBCAmplitude355_4",
+                      Scannable(NoScan(value=self.default_SBCAmplitude355_4),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
+        add_scannable("SBCAmplitude355_5",
+                      Scannable(NoScan(value=self.default_SBCAmplitude355_5),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
+        add_scannable("SBCAmplitude355_6",
+                      Scannable(NoScan(value=self.default_SBCAmplitude355_6),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
+
+        add_scannable("SBCOutToInFactor",
+                      Scannable(NoScan(value=self.default_SBCOutToInFactor),
+                                global_min=0.0, global_max=1.0, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
+        add_scannable("SBCOverallFactor",
+                      Scannable(NoScan(value=self.default_SBCOverallFactor),
+                                global_min=0.0, global_max=1.0, global_step=1.0e-9,
+                                unit="", ndecimals=3), group='SBC')
+
         add_scannable("SBCTime",
-                      Scannable(NoScan(value=self.default_SBCtime),
+                      Scannable(NoScan(value=self.default_SBCTime),
                                 global_min=0.00001 * ms, global_step=1.0e-9 * ms,
                                 unit="ms", ndecimals=4), group='SBC')
+        add_scannable("SBCTime_1",
+                      Scannable(NoScan(value=self.default_SBCTime_1),
+                                global_min=0.00001 * ms, global_step=1.0e-9 * ms,
+                                unit="ms", ndecimals=4), group='SBC')
+        add_scannable("SBCTime_2",
+                      Scannable(NoScan(value=self.default_SBCTime_2),
+                                global_min=0.00001 * ms, global_step=1.0e-9 * ms,
+                                unit="ms", ndecimals=4), group='SBC')
+        add_scannable("SBCTime_3",
+                      Scannable(NoScan(value=self.default_SBCTime_3),
+                                global_min=0.00001 * ms, global_step=1.0e-9 * ms,
+                                unit="ms", ndecimals=4), group='SBC')
+
         add_scannable("SBCAmplitude935",
                       Scannable(NoScan(value=0.00500),
                                 global_min=0.0, global_max=0.8, global_step=1.0e-9,
@@ -266,38 +378,15 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
 
         # ------Raman---------#
-        self.setattr_argument('EnableAWG', BooleanValue(default=False), group='Raman')
-        self.setattr_argument("AWG_Mode", EnumerationValue(["preload", "live"], default="preload"),
-                              group="Raman")
-        self.setattr_argument('MScheck', BooleanValue(default=False), group='Raman')
-        self.setattr_argument("B1check", BooleanValue(default=True), group='Raman')
-        add_scannable("Frequency355_Raman1",
-                      Scannable(NoScan(value=self.default_Raman1_freq),
+        add_scannable("Frequency355_RamanA14",
+                      Scannable(NoScan(value=self.default_RamanA14_freq),
                                 global_min=100.0 * MHz, global_max=250.0 * MHz,
                                 global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
-        add_scannable("Amplitude355_Raman1",
-                      Scannable(NoScan(value=self.default_Raman1_amp),
+        add_scannable("Amplitude355_RamanA14",
+                      Scannable(NoScan(value=self.default_RamanA14_amp),
                                 global_min=0.0, global_max=0.8, global_step=1.0e-9,
                                 unit="", ndecimals=5), group='Raman')
-        self.setattr_argument("A16check", BooleanValue(default=False), group='Raman')
-        add_scannable("Frequency355_RamanA16",
-                      Scannable(NoScan(value=self.default_RamanA16_freq),
-                                global_min=100.0 * MHz, global_max=250.0 * MHz,
-                                global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
-        add_scannable("Amplitude355_RamanA16",
-                      Scannable(NoScan(value=self.default_RamanA16_amp),
-                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
-                                unit="", ndecimals=5), group='Raman')
-        self.setattr_argument("B2check", BooleanValue(default=False), group='Raman')
-        add_scannable("Frequency355_RamanB2",
-                      Scannable(NoScan(value=self.default_RamanB2_freq),
-                                global_min=100.0 * MHz, global_max=250.0 * MHz,
-                                global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
-        add_scannable("Amplitude355_RamanB2",
-                      Scannable(NoScan(value=self.default_RamanB2_amp),
-                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
-                                unit="", ndecimals=5), group='Raman')
-        self.setattr_argument("A15check", BooleanValue(default=False), group='Raman')
+
         add_scannable("Frequency355_RamanA15",
                       Scannable(NoScan(value=self.default_RamanA15_freq),
                                 global_min=100.0 * MHz, global_max=250.0 * MHz,
@@ -306,25 +395,58 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                       Scannable(NoScan(value=self.default_RamanA15_amp),
                                 global_min=0.0, global_max=0.8, global_step=1.0e-9,
                                 unit="", ndecimals=5), group='Raman')
+
+        add_scannable("Frequency355_RamanA16",
+                      Scannable(NoScan(value=self.default_RamanA16_freq),
+                                global_min=100.0 * MHz, global_max=250.0 * MHz,
+                                global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
+        add_scannable("Amplitude355_RamanA16",
+                      Scannable(NoScan(value=self.default_RamanA16_amp),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=5), group='Raman')
+
+        add_scannable("Frequency355_RamanB1",
+                      Scannable(NoScan(value=self.default_RamanB1_freq),
+                                global_min=100.0 * MHz, global_max=250.0 * MHz,
+                                global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
+        add_scannable("Amplitude355_RamanB1",
+                      Scannable(NoScan(value=self.default_RamanB1_amp),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=5), group='Raman')
+
+        add_scannable("Frequency355_RamanB2",
+                      Scannable(NoScan(value=self.default_RamanB2_freq),
+                                global_min=100.0 * MHz, global_max=250.0 * MHz,
+                                global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
+        add_scannable("Amplitude355_RamanB2",
+                      Scannable(NoScan(value=self.default_RamanB2_amp),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=5), group='Raman')
+
+        add_scannable("Frequency355_RamanB3",
+                      Scannable(NoScan(value=self.default_RamanB3_freq),
+                                global_min=100.0 * MHz, global_max=250.0 * MHz,
+                                global_step=1.0e-9 * MHz, unit="MHz", ndecimals=7), group='Raman')
+        add_scannable("Amplitude355_RamanB3",
+                      Scannable(NoScan(value=self.default_RamanB3_amp),
+                                global_min=0.0, global_max=0.8, global_step=1.0e-9,
+                                unit="", ndecimals=5), group='Raman')
+
+        self.setattr_argument('EnableAWG', BooleanValue(default=False), group='Raman')
+        self.setattr_argument("AWG_Mode", EnumerationValue(["preload", "live"], default="preload"),
+                              group="Raman")
+        self.setattr_argument("SBCcheck", BooleanValue(default=self.default_SBCcheck), group='Raman')
+        self.setattr_argument("A14check", BooleanValue(default=False), group='Raman')
+        self.setattr_argument("A15check", BooleanValue(default=False), group='Raman')
+        self.setattr_argument("A16check", BooleanValue(default=False), group='Raman')
+        self.setattr_argument("B1check", BooleanValue(default=True), group='Raman')
+        self.setattr_argument("B2check", BooleanValue(default=False), group='Raman')
+        self.setattr_argument("B3check", BooleanValue(default=False), group='Raman')
+
         add_scannable("RamanTime",
                       Scannable(NoScan(value=self.default_Raman_time),
                                 global_min=0.00001 * ms,
                                 global_step=1.0e-9 * ms, unit="ms", ndecimals=6), group='Raman')
-
-        self.setattr_argument("checkLighShiftRSB_calib", BooleanValue(default=False), group='Raman')
-
-        add_scannable("LighShiftFactor_BSB",
-                      Scannable(NoScan(value=1.0), global_min=0.0, global_max=2.0,
-                                global_step=1.0e-9, unit="", ndecimals=3), group='Raman')
-
-        add_scannable("GlobalSidebandAmpScale",
-                      Scannable(NoScan(value=1.0), global_min=0.0, global_max=2.0,
-                                global_step=1.0e-9, unit="", ndecimals=3), group='Raman')
-
-        add_scannable("Bz",
-                      Scannable(NoScan(value=0.0 * kHz), global_min=-50.0 * kHz, global_max=50 * kHz,
-                                global_step=1.0e-9 * kHz, unit="kHz", ndecimals=3), group='Raman')
-        # ---------------------#
 
         # -----Raman Piezos---#
         add_scannable("piezoR1H",
@@ -366,45 +488,97 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.t_total_scan = 0.0
 
         self.awg_repeat_per_scan_point = False
+        self.awg_is_y_axis = False  # only turned on for a genuine hybrid scan
+        self.awg_is_x_axis = False  # only turned on for a genuine hybrid scan
         self.awg_cycle_len = 1
 
     def extract_dataset_defaults(self):
         self.default_SBCcheck = bool(self.get_dataset("SBC.Check"))
         self.default_SBCFrequency355_1 = self.get_dataset("SBC.tone1.Frequency")
-        self.default_SBCAmplitude355_1 = self.get_dataset("SBC.tone1.Amplitude")
         self.default_SBCFrequency355_2 = self.get_dataset("SBC.tone2.Frequency")
-        self.default_SBCAmplitude355_2 = self.get_dataset("SBC.tone2.Amplitude")
-        self.default_SBCtime = self.get_dataset("SBC.tone1.Time(ms)") * ms
+        self.default_SBCFrequencyO1 = self.get_dataset("SBC.Outers.O1")
+        self.default_SBCFrequencyO2 = self.get_dataset("SBC.Outers.O2")
+        self.default_SBCFrequencyO3 = self.get_dataset("SBC.Outers.O3")
+        self.default_SBCFrequencyO4 = self.get_dataset("SBC.Outers.O4")
+        self.default_SBCFrequencyO5 = self.get_dataset("SBC.Outers.O5")
+        self.default_SBCFrequencyO6 = self.get_dataset("SBC.Outers.O6")
+        self.default_SBCFrequencyI1 = self.get_dataset("SBC.Inners.I1")
+        self.default_SBCFrequencyI2 = self.get_dataset("SBC.Inners.I2")
+        self.default_SBCFrequencyI3 = self.get_dataset("SBC.Inners.I3")
+        self.default_SBCFrequencyI4 = self.get_dataset("SBC.Inners.I4")
+        self.default_SBCFrequencyI5 = self.get_dataset("SBC.Inners.I5")
+        self.default_SBCFrequencyI6 = self.get_dataset("SBC.Inners.I6")
+        # self.default_SBCAmplitude355_1 = self.get_dataset("SBC.tone1.Amplitude")
+        # self.default_SBCAmplitude355_2 = self.get_dataset("SBC.tone2.Amplitude")
+        self.default_SBCAmplitude355_1 = self.get_dataset("SBC.Amps.Amp1")
+        self.default_SBCAmplitude355_2 = self.get_dataset("SBC.Amps.Amp2")
+        self.default_SBCAmplitude355_3 = self.get_dataset("SBC.Amps.Amp3")
+        self.default_SBCAmplitude355_4 = self.get_dataset("SBC.Amps.Amp4")
+        self.default_SBCAmplitude355_5 = self.get_dataset("SBC.Amps.Amp5")
+        self.default_SBCAmplitude355_6 = self.get_dataset("SBC.Amps.Amp6")
+        self.default_SBCOutToInFactor = self.get_dataset("SBC.Amps.relativeScale")
+        self.default_SBCOverallFactor = self.get_dataset("SBC.Amps.overallScale")
+
+        self.default_SBCTime = self.get_dataset("SBC.tone1.Time(ms)") * ms
+        self.default_SBCTime_1 = self.get_dataset("SBC.Times.Time1") # already dispalyed in seconds
+        self.default_SBCTime_2 = self.get_dataset("SBC.Times.Time2")
+        self.default_SBCTime_3 = self.get_dataset("SBC.Times.Time3")
+
         self.default_prepfreqOP = self.get_dataset("OP.Frequency")
         self.default_prepampOP = self.get_dataset("OP.Amp")
         self.default_preptimeOP = self.get_dataset("OP.Time(ms)") * ms
+        self.default_prepfreqLOP = self.get_dataset("LOP.Frequency")
+        self.default_prepampLOP = self.get_dataset("LOP.Amp")
+        self.default_preptimeLOP = self.get_dataset("LOP.Time(ms)") * ms
+
         self.default_MWFrequency = self.get_dataset("MW.Frequency")
         self.default_MWAmp = self.get_dataset("MW.Amp")
         self.default_MWTime = self.get_dataset("MW.Time(ms)") * ms
-        self.default_Raman1_freq = self.get_dataset("355_Raman1.Frequency")
-        self.default_Raman1_amp = self.get_dataset("355_Raman1.Amp")
-        self.default_Raman_time = self.get_dataset("355_Raman1.Time(ms)") * ms
-        self.default_RamanA16_freq = self.get_dataset("355_RamanA16.Frequency")
-        self.default_RamanA16_amp = self.get_dataset("355_RamanA16.Amp")
-        self.default_RamanB2_freq = self.get_dataset("355_RamanB2.Frequency")
-        self.default_RamanB2_amp = self.get_dataset("355_RamanB2.Amp")
+
+        self.default_RamanA14_freq = self.get_dataset("355_RamanA14.Frequency")
+        self.default_RamanA14_amp = self.get_dataset("355_RamanA14.Amp")
         self.default_RamanA15_freq = self.get_dataset("355_RamanA15.Frequency")
         self.default_RamanA15_amp = self.get_dataset("355_RamanA15.Amp")
+        self.default_RamanA16_freq = self.get_dataset("355_RamanA16.Frequency")
+        self.default_RamanA16_amp = self.get_dataset("355_RamanA16.Amp")
+        self.default_RamanB1_freq = self.get_dataset("355_RamanB1.Frequency")
+        self.default_RamanB1_amp = self.get_dataset("355_RamanB1.Amp")
+        self.default_RamanB2_freq = self.get_dataset("355_RamanB2.Frequency")
+        self.default_RamanB2_amp = self.get_dataset("355_RamanB2.Amp")
+        self.default_RamanB3_freq = self.get_dataset("355_RamanB3.Frequency")
+        self.default_RamanB3_amp = self.get_dataset("355_RamanB3.Amp")
+
+        self.default_Raman_time = self.get_dataset("355_RamanB1.Time(ms)") * ms
         self.default_ThresholdCheck = bool(self.get_dataset("PMTCheckThreshold"))
         self.default_detectionTime = self.get_dataset("Detection.Time(ms)") * ms
         self.default_endcapX = self.get_dataset("Experiment_config.endcapX")
         self.default_endcap_avg = self.get_dataset("Experiment_config.endcap_avg")
         self.default_allY = self.get_dataset("Experiment_config.all_y")
         self.default_allZ = self.get_dataset("Experiment_config.all_z")
-        self.default_PiezoR1H = self.get_dataset("355_Raman1.H1")
-        self.default_PiezoR1V = self.get_dataset("355_Raman1.V1")
+        self.default_PiezoR1H = self.get_dataset("355_RamanB1.H1")
+        self.default_PiezoR1V = self.get_dataset("355_RamanB1.V1")
         self.default_PiezoR2H = self.get_dataset("355_Raman2.H2")
         self.default_PiezoR2V = self.get_dataset("355_Raman2.V2")
+
+        # self.set_dataset("TerminationCheck", False, broadcast = True)
 
 
     # more elegant; works (26/07/17)
     def prepare(self):
         import time
+
+        ## 26/09/20 gt: kill idler when new experiment begins
+        for rid, job in self.scheduler.get_status().items():
+            if job["expid"]["class_name"] == "Idle369On355Pulsed":
+                print(f"[MAIN] Found active idler (RID {rid}). Requesting termination...")
+                self.scheduler.request_termination(rid)
+
+                # 26/09/25 gt: wait for idler to finish
+                print("[MAIN] Waiting for idler cleanup to complete...")
+                while rid in self.scheduler.get_status():
+                    time.sleep(0.05)
+
+
         print("\n" + "=" * 40)
         print("STARTING TIMING PROFILE")
         print("=" * 40)
@@ -447,6 +621,16 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         print("=" * 40 + "\n")
 
     def _init_basics(self):
+        # --------------------------------------------#
+        # Electrode config
+        self.originalDCElectrodeValues = self.get_dataset("DC.ElectrodeValues")
+        self.modDCElectrodeValues = self.get_dataset("DC.ElectrodeValues")  # to be modified
+        self.DCElectrodeMapping = self.get_dataset("DC.ElectrodeMapping")
+        self.originalEndcapX = self.get_dataset("Experiment_config.endcapX")
+        self.originalAllY = self.get_dataset("Experiment_config.all_y")
+        self.originalAllZ = self.get_dataset("Experiment_config.all_z")
+        self.originalEndcapAvg = self.get_dataset("Experiment_config.endcap_avg")
+        # -------------------------------------------#
         self.num_repeat = self.get_dataset("Repetitions")
         self.histpoints = np.zeros(self.num_repeat, dtype=int)
         self.points = [[0.0] * self.num_repeat, [0.0] * self.num_repeat]
@@ -469,7 +653,6 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         # Format: (attribute_name, dataset_key, multiplier)
         datasets = [
             ("doppler_freq", "Doppler.Frequency", 1.0),
-            # ("doppler_amp", "Doppler.Amp", 1.0),
             ("doppler_amp", "Experiment_config.DopplerAmp", 1.0),
             ("doppler_time", "Doppler.Time(ms)", ms),
             ("det_freq", "Detection.Frequency", 1.0),
@@ -482,8 +665,11 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             ("PiBy2Time435_1", "Ramsey.PiBy2Time435_1(ms)", ms),
             ("PiBy2Time435_2", "Ramsey.PiBy2Time435_2(ms)", ms),
             ("ULE_369_Amp", "369_ULE.Amp", 1.0),
-            ("ULE_369_Frequency", "369_ULE.Frequency", 1.0),
+            ("ULE_369_Frequency_idle", "Experiment_config.ULE369_freq_idle", 1.0),
+            ("ULE_369_Frequency_exp", "Experiment_config.ULE369_freq", 1.0),
             ("ULE_369_Att", "369_ULE.Attenuation", 1.0),
+            ("ULE_ramp_rate", "369_ULE.ramp_rate", 1.0),
+            ("ULE_time_step", "369_ULE.time_step", 1.0),
             ("cameraCoolingShotTime", "Camera.GlobalCoolingShotTime(ms)", ms),
         ]
 
@@ -523,51 +709,12 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         self.scan_arr_y = np.array([0.0])
         self.scan_unit_y = ""
 
-        # self.awg_enabled = getattr(self, "EnableAWG", False)
-        # self.awg_scan_info = None
-        # self.awg_globals = None
-        #
-        # scan_mode = getattr(self, "CenterScanMode", "linear")
-        #
-        # # --- RESTORED AWG LOGIC ---
-        # if self.awg_enabled:
-        #     self.scan_param_name = self.get_dataset('AWG.Scan_Parameter.name')
-        #     self.scan_arr = np.array(self.get_dataset('AWG.Scan_Parameter.array'))
-        #     awg_scan_unit = self.get_dataset('AWG.Scan_Parameter.units')
-        #     self.scan_unit = 'ms' if awg_scan_unit == 's' else ('MHz' if awg_scan_unit == 'Hz' else awg_scan_unit)
-        #
-        #     # Catch 2D Variables
-        #     self.is_2d_scan = self.get_dataset('AWG.Scan_Parameter.is_2D', default=False)
-        #     if self.is_2d_scan:
-        #         self.scan_param_y = self.get_dataset('AWG.Scan_Parameter.name_y')
-        #         self.scan_arr_y = np.array(self.get_dataset('AWG.Scan_Parameter.array_y'))
-        #         awg_scan_unit_y = self.get_dataset('AWG.Scan_Parameter.units_y')
-        #         self.scan_unit_y = 'ms' if awg_scan_unit_y == 's' else (
-        #             'MHz' if awg_scan_unit_y == 'Hz' else awg_scan_unit_y)
-        #
-        #         master_scan_vars = [str(self.scan_param_name), str(self.scan_param_y)]
-        #     else:
-        #         master_scan_vars = [str(self.scan_param_name)]
-        #
-        #     # Fetch the unrolled grid for the AWG payload
-        #     awg_unrolled_array = self.get_dataset('AWG.Scan_Parameter.unrolled_grid')
-        #
-        #     try:
-        #         num_repeat = getattr(self, "num_repeat", 100)
-        #         self.awg_scan_info = {
-        #             "scan_variables": master_scan_vars,
-        #             "scan_array": awg_unrolled_array,  # Re-send the unrolled grid to hit the cache
-        #             "num_reps": num_repeat,
-        #             "is_2d": self.is_2d_scan
-        #         }
-        #         self.awg_globals = self.get_awg_globals()
-        #     except Exception as e:
-        #         print(f"AWG Setup Error in Prepare: {e}")
-
         self.awg_enabled = getattr(self, "EnableAWG", False)
         self.awg_scan_info = None
         self.awg_globals = None
         self.awg_repeat_per_scan_point = False
+        self.awg_is_y_axis = False  # only turned on for a genuine hybrid scan
+        self.awg_is_x_axis = False  # only turned on for a genuine hybrid scan
         self.awg_cycle_len = 1
 
         scan_mode = getattr(self, "CenterScanMode", "linear")
@@ -622,9 +769,12 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                     self.scan_unit_y = 'ms' if awg_unit_y == 's' else ('MHz' if awg_unit_y == 'Hz' else awg_unit_y)
                 self.awg_repeat_per_scan_point = False
                 self.awg_cycle_len = num_awg_pts
+
             else:
-                # ---- decoupled: barebones scannable drives scan_arr, AWG just repeats ----
+                # ---- one or two barebones variables are being scanned directly ----
                 if len(scanned_vars) == 1:
+
+                    # First, read in the one barebones variable, exactly as before.
                     self.scan_param_name, self.scan_arr, self.scan_unit, is_random = scanned_vars[0]
                     if not is_random:
                         if scan_mode == "linear":
@@ -632,7 +782,69 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                         elif scan_mode == "center_out":
                             if np.all(np.diff(self.scan_arr) >= 0) or np.all(np.diff(self.scan_arr) <= 0):
                                 self.scan_arr = to_center_out(self.scan_arr)
+
+                    if self.awg_hybrid_2d_scan and num_awg_pts > 1:
+                        # ---- Hybrid scan: one barebones variable + one real AWG variable ----
+                        #
+                        # We treat the barebones variable and the AWG variable as a pair of
+                        # two candidate axes, and apply Scan_Order to this pair the exact same
+                        # way it is already applied when there are two barebones variables.
+                        # "0,1" keeps the barebones variable as X and the AWG variable as Y.
+                        # "1,0" swaps them, so the AWG variable becomes X instead.
+
+                        awg_unit_raw = self.get_dataset('AWG.Scan_Parameter.units')
+                        awg_display_unit = 'ms' if awg_unit_raw == 's' else (
+                            'MHz' if awg_unit_raw == 'Hz' else awg_unit_raw)
+
+                        barebones_axis = {
+                            "kind": "barebones",
+                            "name": self.scan_param_name,
+                            "arr": self.scan_arr,
+                            "unit": self.scan_unit,
+                        }
+                        awg_axis = {
+                            "kind": "awg",
+                            "name": awg_name,
+                            "arr": np.array(self.get_dataset('AWG.Scan_Parameter.array')),
+                            "unit": awg_display_unit,
+                        }
+                        hybrid_axes = [barebones_axis, awg_axis]
+
+                        order_str = getattr(self, "Scan_Order", "0,1").strip()
+                        try:
+                            indices = [int(idx.strip()) for idx in order_str.split(",")]
+                            hybrid_axes = [hybrid_axes[i] for i in indices]
+                        except (ValueError, IndexError) as e:
+                            print(
+                                f"[WARNING] Invalid scan order '{order_str}' for hybrid scan. Using default order. Error: {e}")
+
+                        self.scan_param_name = hybrid_axes[0]["name"]
+                        self.scan_arr = hybrid_axes[0]["arr"]
+                        self.scan_unit = hybrid_axes[0]["unit"]
+
+                        self.scan_param_y = hybrid_axes[1]["name"]
+                        self.scan_arr_y = hybrid_axes[1]["arr"]
+                        self.scan_unit_y = hybrid_axes[1]["unit"]
+
+                        self.is_2d_scan = True
+
+                        # Remember which physical axis, X or Y, the AWG variable actually
+                        # ended up on, since the real-time code needs to know which one to
+                        # follow when deciding which waveform to load.
+                        self.awg_is_y_axis = (hybrid_axes[1]["kind"] == "awg")
+                        self.awg_is_x_axis = (hybrid_axes[0]["kind"] == "awg")
+                        self.awg_repeat_per_scan_point = False
+
+                    else:
+                        # ---- unchanged: the old averaging/cycling behavior ----
+                        if num_awg_pts != num_repeat:
+                            print(f"[WARNING] AWG precomputed {num_awg_pts} pts but Repetitions={num_repeat}. "
+                                  f"They should match for the AWG cycle to align cleanly with one macro scan point.")
+                        self.awg_repeat_per_scan_point = True
+                        self.awg_cycle_len = num_awg_pts
+
                 else:
+                    # ---- unchanged: two barebones variables, no AWG axis involved ----
                     self.is_2d_scan = True
                     self.scan_param_name, self.scan_arr, self.scan_unit, is_random_x = scanned_vars[0]
                     self.scan_param_y, self.scan_arr_y, self.scan_unit_y, is_random_y = scanned_vars[1]
@@ -643,11 +855,11 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                         self.scan_arr_y = np.sort(self.scan_arr_y) if scan_mode == "linear" else to_center_out(
                             self.scan_arr_y)
 
-                if num_awg_pts != num_repeat:
-                    print(f"[WARNING] AWG precomputed {num_awg_pts} pts but Repetitions={num_repeat}. "
-                          f"They should match for the AWG cycle to align cleanly with one macro scan point.")
-                self.awg_repeat_per_scan_point = True
-                self.awg_cycle_len = num_awg_pts
+                    if num_awg_pts != num_repeat:
+                        print(f"[WARNING] AWG precomputed {num_awg_pts} pts but Repetitions={num_repeat}. "
+                              f"They should match for the AWG cycle to align cleanly with one macro scan point.")
+                    self.awg_repeat_per_scan_point = True
+                    self.awg_cycle_len = num_awg_pts
 
             outer_pts = len(self.scan_arr) * (len(self.scan_arr_y) if getattr(self, "is_2d_scan", False) else 1)
             try:
@@ -800,21 +1012,30 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             "det_freq", "det_amp", "DetTime369", "checkCameraDetection",
             "checkGlobalCoolingShot", "cameraCoolingShotTime",
             "freq_935", "amp_935",
-            "prepfreqOP", "prepampOP", "preptimeOP",
-            "prepfreqLOP", "prepampLOP", "preptimeLOP",
+            "StatePrepOP", "prepfreqOP", "prepampOP", "preptimeOP",
+            "StatePrepLOP","prepfreqLOP", "prepampLOP", "preptimeLOP",
             "FrequencyMW", "AmplitudeMW", "TimeMW",
-            "SBCcheck", "SBCFrequency355_1", "SBCAmplitude355_1",
-            "SBCFrequency355_2", "SBCAmplitude355_2",
-            "SBCTime", "SBCAmplitude935",
+
+            "SBCcheck", "SBCFrequency355_1", "SBCFrequency355_2",
+            "SBCFrequencyO1", "SBCFrequencyO2", "SBCFrequencyO3", "SBCFrequencyO4", "SBCFrequencyO5", "SBCFrequencyO6",
+            "SBCFrequencyI1", "SBCFrequencyI2", "SBCFrequencyI3", "SBCFrequencyI4", "SBCFrequencyI5", "SBCFrequencyI6",
+            "SBCAmplitude355_1", "SBCAmplitude355_2", "SBCAmplitude355_3", "SBCAmplitude355_4", "SBCAmplitude355_5",
+            "SBCAmplitude355_6", "SBCOutToInFactor", "SBCOverallFactor",
+            "SBCTime", "SBCTime_1", "SBCTime_2", "SBCTime_3", "SBCAmplitude935",
+
             "ClearoutPower935", "ClearoutTime935",
             "prepfreq435", "preptime",
             "WaitTime", "Ramseycheck", "Phase1", "Phase2",
-            "EnableAWG", "MScheck",
-            "B1check", "Frequency355_Raman1", "Amplitude355_Raman1",
-            "A16check", "Frequency355_RamanA16", "Amplitude355_RamanA16",
-            "B2check", "Frequency355_RamanB2", "Amplitude355_RamanB2",
+            "EnableAWG",
+
+            "A14check", "Frequency355_RamanA14", "Amplitude355_RamanA14",
             "A15check", "Frequency355_RamanA15", "Amplitude355_RamanA15",
-            "RamanTime", "LighShiftFactor_BSB", "GlobalSidebandAmpScale", "Bz",
+            "A16check", "Frequency355_RamanA16", "Amplitude355_RamanA16",
+            "B1check", "Frequency355_RamanB1", "Amplitude355_RamanB1",
+            "B2check", "Frequency355_RamanB2", "Amplitude355_RamanB2",
+            "B3check", "Frequency355_RamanB3", "Amplitude355_RamanB3",
+
+            "RamanTime",
             "RamseyFrequency435mod", "RamseyAmplitude435",
             "PiBy2Time435_1", "PiBy2Time435_2",
             "endcapX", "allY", "allZ", "endcap_avg",
@@ -825,9 +1046,11 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         param_to_attr = {
             "Attenuation_435": "attenuation_435_1",
             "choice435": "choice435channel_1_2",
+            # "checkOP": "statePrepOP",
             "OP_freq": "prepfreqOP",
             "OP_amp": "prepampOP",
             "OP_time": "preptimeOP",
+            # "checkLOP": "statePrepLOP",
             "LOP_freq": "prepfreqLOP",
             "LOP_amp": "prepampLOP",
             "LOP_time": "preptimeLOP",
@@ -838,16 +1061,25 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             "RamseyCheck": "Ramseycheck",
             "phase1": "Phase1",
             "phase2": "Phase2",
-            "FrequencyRaman1": "Frequency355_Raman1",
-            "AmplitudeRaman1": "Amplitude355_Raman1",
-            "FrequencyRamanA16": "Frequency355_RamanA16",
-            "AmplitudeRamanA16": "Amplitude355_RamanA16",
-            "FrequencyRamanB2": "Frequency355_RamanB2",
-            "AmplitudeRamanB2": "Amplitude355_RamanB2",
+
+            "FrequencyRamanA14": "Frequency355_RamanA14",
+            "AmplitudeRamanA14": "Amplitude355_RamanA14",
             "FrequencyRamanA15": "Frequency355_RamanA15",
             "AmplitudeRamanA15": "Amplitude355_RamanA15",
+            "FrequencyRamanA16": "Frequency355_RamanA16",
+            "AmplitudeRamanA16": "Amplitude355_RamanA16",
+            "FrequencyRamanB1": "Frequency355_RamanB1",
+            "AmplitudeRamanB1": "Amplitude355_RamanB1",
+            "FrequencyRamanB2": "Frequency355_RamanB2",
+            "AmplitudeRamanB2": "Amplitude355_RamanB2",
+            "FrequencyRamanB3": "Frequency355_RamanB3",
+            "AmplitudeRamanB3": "Amplitude355_RamanB3",
+
+            # "SBCTime_1": "SBCtime_1", # 26/09/24 gt: to catch case sensitivity to "T"
+            # "SBCTime_2": "SBCtime_2",
+            # "SBCTime_3": "SBCtime_3",
+
             "Raman_time": "RamanTime",
-            "LighShiftFactor": "LighShiftFactor_BSB",
             "RamseyFrequency435": "RamseyFrequency435mod",
             "newEndcapX": "endcapX",
             "newAllY": "allY",
@@ -877,85 +1109,36 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         if kernel_scan_target_y in param_to_attr:
             kernel_scan_target_y = param_to_attr[kernel_scan_target_y]
 
-        # Remap AWG targets to native internal variables
-        # if is_awg_scan:
-
-        # 2026/9/3 AM: regex function for awg map with flexible naming convention
-        import re
-
+        # 26/09/14 gt: regex function for awg map with flexible naming convention
         def _resolve_awg_kernel_target(dataset_name):
-            """Maps AWG.ch<N>.<name> to the fixed kernel on_param it drives, based
-            on the variable's type prefix (T/V/f/ph) rather than an enumerated list
-            of exact names -- Tgate, Tprep, Vprep, fdet, ph2, etc. all resolve
-            automatically with no changes needed here."""
-            m = re.search(r"AWG\.ch([1-4])\.(\w+)", dataset_name)
+            """Maps AWG.ch<N>.<name> (or chN_name) to the fixed kernel on_param it drives."""
+
+            m = re.search(r"(?:AWG[\._])?ch(\d+)[\._]([a-zA-Z0-9_]+)", dataset_name, re.IGNORECASE)
             if not m:
                 return dataset_name
-            channel, base_name = m.group(1), m.group(2).lower()
+
+            channel = m.group(1)
+            base_name = m.group(2).lower()
+
             if base_name.startswith('t'):
                 return "RamanTime"
-            if base_name.startswith('v'):
-                return {'1': "Amplitude355_Raman1", '2': "Amplitude355_RamanA16",
-                        '3': "Amplitude355_RamanB2", '4': "Amplitude355_RamanA15"}[channel]
-            if base_name.startswith('f'):
-                return {'1': "Frequency355_Raman1", '2': "Frequency355_RamanA16",
-                        '3': "Frequency355_RamanB2", '4': "Frequency355_RamanA15"}[channel]
+
+            # this maps variables to AWG channels (1-4)
+            if base_name.startswith('v') or base_name.startswith('amp'):
+                return {'1': "Amplitude355_RamanA14", '2': "Amplitude355_RamanA15",
+                        '3': "Amplitude355_RamanB2", '4': "Amplitude355_RamanB3"}.get(channel, dataset_name)
+
+            if base_name.startswith('f') or 'freq' in base_name:
+                return {'1': "Frequency355_RamanA14", '2': "Frequency355_RamanA15",
+                        '3': "Frequency355_RamanB2", '4': "Frequency355_RamanB3"}.get(channel, dataset_name)
+
             if base_name.startswith('ph'):
                 return "Phase1"
+
             return dataset_name
 
-        if is_awg_native_scan:
-
-            ## old version of awg_map
-            # awg_map = {
-            #     "AWG.ch1.T0": "RamanTime", "AWG.ch2.T0": "RamanTime", "AWG.ch3.T0": "RamanTime",
-            #     "AWG.ch4.T0": "RamanTime", "AWG.ch1.T1": "WaitTime",
-            #     "AWG.ch1.V0": "Amplitude355_Raman1",
-            #     "AWG.ch1.V1": "Amplitude355_Raman1",
-            #     "AWG.ch2.V0": "Amplitude355_RamanA16",
-            #     "AWG.ch3.V0": "Amplitude355_RamanB2",
-            #     "AWG.ch4.V0": "Amplitude355_RamanA15"
-            # }
-
-
-
-            # 2026/8/27 AM: Ensuring a proxy map is made between parameters of the AWG to that in Artiq so that scannables are well defined.
-            # currently the mapping may not be the most robust. Capped to 10 because afterwards the numbers can get tricky to distinguish.
-
-            # awg_map = { }
-            # # times
-            # awg_map.update({"AWG.ch1.T" + str(i) : "RamanTime" for i in range(10) })
-            # awg_map.update({"AWG.ch2.T" + str(i): "RamanTime" for i in range(10) })
-            # awg_map.update({"AWG.ch3.T" + str(i): "RamanTime" for i in range(10) })
-            # awg_map.update({"AWG.ch4.T" + str(i): "RamanTime" for i in range(10) })
-            # # amplitudes
-            # awg_map.update({"AWG.ch1.V" + str(i): "Amplitude355_Raman1" for i in range(10) })
-            # awg_map.update({"AWG.ch2.v" + str(i): "Amplitude355_RamanA16" for i in range(10) })
-            # awg_map.update({"AWG.ch3.V" + str(i): "Amplitude355_RamanB2" for i in range(10) })
-            # awg_map.update({"AWG.ch4.V" + str(i): "Amplitude355_RamanA15" for i in range(10) })
-            # # frequencies
-            # awg_map.update({"AWG.ch1.f0" + str(i): "Frequency355_Raman1" for i in range(10) })
-            # awg_map.update({"AWG.ch2.f0" + str(i): "Frequency355_RamanA16" for i in range(10) })
-            # awg_map.update({"AWG.ch3.f0" + str(i): "Frequency355_RamanB2" for i in range(10) })
-            # awg_map.update({"AWG.ch4.f0" + str(i): "Frequency355_RamanA15" for i in range(10) })
-            # # phases
-            # awg_map.update({"AWG.ch1.ph" + str(i): "Phase1" for i in range(10) })
-            # awg_map.update({"AWG.ch2.ph" + str(i): "Phase1" for i in range(10) })
-            # awg_map.update({"AWG.ch3.ph" + str(i): "Phase1" for i in range(10) })
-            # awg_map.update({"AWG.ch4.ph" + str(i): "Phase1" for i in range(10) })
-            #
-            #
-            # for awg_var, raman_var in awg_map.items():
-            #     if awg_var in kernel_scan_target:
-            #         kernel_scan_target = raman_var
-            #         break
-            # if self.is_2d_scan:
-            #     for awg_var, raman_var in awg_map.items():
-            #         if awg_var in kernel_scan_target_y:
-            #             kernel_scan_target_y = raman_var
-            #             break
-
         # 2026/9/3 AM: new flexible naming convention incorporated into awg map
+        if is_awg_native_scan:
             kernel_scan_target = _resolve_awg_kernel_target(kernel_scan_target)
             if self.is_2d_scan:
                 kernel_scan_target_y = _resolve_awg_kernel_target(kernel_scan_target_y)
@@ -1099,13 +1282,13 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         """
         pushes towards +ve Y with all electrodes
         """
-        self.electrodeUpdate(V ,[0 ,1 ,2 ,3 ,4 ,5 ,6 ,7 ,8 ,9 ,10 ,11] ,[-1 ] +[-1 ] * 5 +[1 ] * 5 +[1])
+        self.electrodeUpdate(V, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [-1] + [-1] * 5 + [1] * 5 + [1])
     @kernel
     def AllZ(self, V):
         """
         pushes towards +ve Z with all electrodes
         """
-        self.electrodeUpdate(V ,[0 ,1 ,2 ,3 ,4 ,5 ,6 ,7 ,8 ,9 ,10 ,11] ,[1 ] +[-1 ] * 5 +[1 ] * 5 +[-1])
+        self.electrodeUpdate(V, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [1] + [-1] * 5 + [1] * 5 + [-1])
 
     @kernel
     def endcapAvg(self, V):
@@ -1118,7 +1301,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
     def electrodeUpdate(self ,V ,electrodeList ,signList):
         for i in range(len(electrodeList)):
             self.modDCElectrodeValues[self.DCElectrodeMapping[electrodeList[i]]] = \
-                self.modDCElectrodeValues[self.DCElectrodeMapping[electrodeList[i]]] + V* (signList[i])
+                self.modDCElectrodeValues[self.DCElectrodeMapping[electrodeList[i]]] + V * (signList[i])
 
     @rpc
     def AllZ_calib_get(self) -> TFloat:
@@ -1129,27 +1312,37 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
            doppler_time,
            det_freq, det_amp, det_time, checkCameraDetection, checkGlobalCoolingShot, cameraCoolingShotTime,
            freq_935, amp_935,
-           OP_freq, OP_amp, OP_time, LOP_freq, LOP_amp, LOP_time,
+           StatePrepOP, OP_freq, OP_amp, OP_time, StatePrepLOP, LOP_freq, LOP_amp, LOP_time,
            MW_freq, MW_amp, MW_time,
-           SBCcheck, SBCFrequency355_1, SBCAmplitude355_1, SBCFrequency355_2, SBCAmplitude355_2, SBCTime,
+
+           SBCcheck, SBCFrequency355_1, SBCFrequency355_2,
+           SBCFrequencyO1, SBCFrequencyO2, SBCFrequencyO3, SBCFrequencyO4, SBCFrequencyO5, SBCFrequencyO6,
+           SBCFrequencyI1, SBCFrequencyI2, SBCFrequencyI3, SBCFrequencyI4, SBCFrequencyI5, SBCFrequencyI6,
+           SBCAmplitude355_1, SBCAmplitude355_2, SBCAmplitude355_3, SBCAmplitude355_4, SBCAmplitude355_5,
+           SBCAmplitude355_6, SBCOutToInFactor, SBCOverallFactor,
+           SBCTime,
+           SBCTime_1, SBCTime_2, SBCTime_3,
            SBCAmplitude935,
+
            ClearoutPower935, ClearoutTime935,
            prepfreq435, preptime,
            wait_time, RamseyCheck, phase1, phase2,
-           EnableAWG, MScheck,
-           B1check, FrequencyRaman1, AmplitudeRaman1,
-           A16check, FrequencyRamanA16, AmplitudeRamanA16,
-           B2check, FrequencyRamanB2, AmplitudeRamanB2,
+           EnableAWG,
+           A14check, FrequencyRamanA14, AmplitudeRamanA14,
            A15check, FrequencyRamanA15, AmplitudeRamanA15,
-           Raman_time, LighShiftFactor, GlobalSidebandAmpScale, Bz,
+           A16check, FrequencyRamanA16, AmplitudeRamanA16,
+           B1check, FrequencyRamanB1, AmplitudeRamanB1,
+           B2check, FrequencyRamanB2, AmplitudeRamanB2,
+           B3check, FrequencyRamanB3, AmplitudeRamanB3,
+           Raman_time,
            RamseyFrequency435, RamseyAmplitude435, PiBy2Time435_1, PiBy2Time435_2,
            newEndcapX, newAllY, newAllZ, endcapAvg_V, piezo_R1H, piezo_R1V, piezo_R2H, piezo_R2V,
            num_repeat, iterScan, checkLineTrigger, checkAllZ_calib=False, AllZ_calib_flag=False):
 
         self.zotino0.init()
         delay(2 * ms)
-        # updating zotino with all voltage combinations on electrodes.
 
+        # updating zotino with all voltage combinations on electrodes.
         for i in range(12):
             self.modDCElectrodeValues[i] = self.originalDCElectrodeValues[i]
         # adding up combinations
@@ -1190,15 +1383,18 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         delay(2 * ms)
 
         if iterScan == 0:
-
             self.urukul0_cpld.init()
             self.urukul1_cpld.init()
             self.urukul2_cpld.init()
 
             delay(10 * ms)
-            attenuation = 3.0  # use as required
 
             # Doppler+935
+
+            # 26/09/25 gt: set ULE AOM to experimental frequency; put instead at run, before entering the loop
+            # self.urukul2_ch3.set(frequency=self.ULE_369_Frequency_exp, amplitude=self.ULE_369_Amp)
+            # self.urukul2_ch3.set_att(self.ULE_369_Att * dB)
+            # self.urukul2_ch3.sw.on()
 
             # Doppler
             self.urukul0_ch1.init()
@@ -1206,19 +1402,19 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.urukul0_ch1.set(frequency=doppler_freq, amplitude=doppler_amp, phase_mode=2)
             self.urukul0_ch1.sw.off()
 
-            # 935 # leaving it on for TAMOS system , 2026-7-31
-            self.urukul0_ch2.init()
-            self.urukul0_ch2.set_att(0 * dB)
-            self.urukul0_ch2.set(frequency=freq_935, amplitude=amp_935, phase_mode=2)
-            self.urukul0_ch2.sw.on()
+            # 935 # 26/09/16 gt: now controlled by Sandia, used by TAMOS; this channel used for Raman A14
+            # self.urukul0_ch2.init()
+            # self.urukul0_ch2.set_att(0 * dB)
+            # self.urukul0_ch2.set(frequency=freq_935, amplitude=amp_935, phase_mode=2)
+            # self.urukul0_ch2.sw.on()
 
-            # 435
-            self.urukul0_ch0.init()
-            self.urukul0_ch0.set_att(Attenuation_435 * dB)
-            self.urukul0_ch0.sw.off()
-            self.urukul1_ch0.init()
-            self.urukul1_ch0.set_att(Attenuation_435 * dB)
-            self.urukul1_ch0.sw.off()
+            # 435 # 26/09/16 gt: now used for Raman A16
+            # self.urukul0_ch0.init()
+            # self.urukul0_ch0.set_att(Attenuation_435 * dB)
+            # self.urukul0_ch0.sw.off()
+            # self.urukul1_ch0.init()
+            # self.urukul1_ch0.set_att(Attenuation_435 * dB)
+            # self.urukul1_ch0.sw.off()
 
             # Detection
             self.urukul0_ch3.init()
@@ -1239,7 +1435,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             # LOP
             self.urukul1_ch1.init()
             self.urukul1_ch1.set_att(0 * dB)
-            self.urukul1_ch1.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
+            self.urukul1_ch1.set(frequency=LOP_freq, amplitude=LOP_amp, phase_mode=2)
             self.urukul1_ch1.sw.off()
 
             # MW
@@ -1248,52 +1444,62 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.urukul1_ch2.set(frequency=MW_freq, amplitude=MW_amp, phase_mode=2)
             self.urukul1_ch2.sw.off()
 
-            # 355 Raman 1; B1
-            self.urukul2_ch0.init()
-            self.urukul2_ch0.set_att(0 * dB)
-            self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
-            self.urukul2_ch0.sw.off()
-            # self.urukul2_ch0.sw.on()
-            self.zotino0.write_dac(31, 5.0)  # set RF switch to B1 DDS
-            # self.zotino0.write_dac(31, 0.0)  # set RF switch to B1 AWG
-            self.zotino0.load()
-
-            # 355 Raman 1; A16
-            self.urukul2_ch1.init()
-            self.urukul2_ch1.set_att(0 * dB)
-            self.urukul2_ch1.set(frequency=FrequencyRamanA16, amplitude=AmplitudeRamanA16, phase_mode=2)
-            self.urukul2_ch1.sw.off()
-            self.zotino0.write_dac(30, 5.0)  # set RF switch to A16 DDS
-            # self.zotino0.write_dac(30, 0.0)  # set RF switch to A16 AWG
-            self.zotino0.load()
-
-            # Raman 1; B2
-            self.urukul1_ch3.init()
-            self.urukul1_ch3.set_att(0 * dB)
-            self.urukul1_ch3.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
-            self.urukul1_ch3.sw.off()
-            self.zotino0.write_dac(29, 5.0)  # set RF switch to B2 DDS
-            # self.zotino0.write_dac(29, 0.0)  # set RF switch to B2 AWG
+            # 355 Raman 1; A14
+            self.urukul0_ch2.init()
+            self.urukul0_ch2.set_att(0 * dB)
+            self.urukul0_ch2.set(frequency=FrequencyRamanA14, amplitude=AmplitudeRamanA14, phase_mode=2)
+            self.urukul0_ch2.sw.off()
+            self.zotino0.write_dac(28, 5.0)  # set RF switch to A14 DDS
+            # self.zotino0.write_dac(28, 0.0)  # set RF switch to A14 AWG
             self.zotino0.load()
 
             # 355 Raman 1; A15
-            self.urukul2_ch3.init()
-            self.urukul2_ch3.set_att(0 * dB)
-            self.urukul2_ch3.set(frequency=FrequencyRamanA15, amplitude=AmplitudeRamanA15, phase_mode=2)
-            self.urukul2_ch3.sw.off()
-            self.zotino0.write_dac(28, 5.0)  # set RF switch to A15 DDS
-            # self.zotino0.write_dac(28, 0.0)  # set RF switch to A15 AWG
+            self.urukul2_ch1.init()
+            self.urukul2_ch1.set_att(0 * dB)
+            self.urukul2_ch1.set(frequency=FrequencyRamanA15, amplitude=AmplitudeRamanA15, phase_mode=2)
+            self.urukul2_ch1.sw.off()
+            self.zotino0.write_dac(30, 5.0)  # set RF switch to A15 DDS
+            # self.zotino0.write_dac(30, 0.0)  # set RF switch to A15 AWG
             self.zotino0.load()
+
+            # 355 Raman 1; A16, only DDS
+            self.urukul0_ch0.init()
+            self.urukul0_ch0.set_att(0 * dB)
+            self.urukul0_ch0.set(frequency=FrequencyRamanA16, amplitude=AmplitudeRamanA16, phase_mode=2)
+            self.urukul0_ch0.sw.off()
+
+            # 355 Raman 1; B1, only DDS
+            self.urukul1_ch0.init()
+            self.urukul1_ch0.set_att(0 * dB)
+            self.urukul1_ch0.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanB1, phase_mode=2)
+            self.urukul1_ch0.sw.off()
+
+            # 355 Raman 1; B2
+            self.urukul2_ch0.init()
+            self.urukul2_ch0.set_att(0 * dB)
+            self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
+            self.urukul2_ch0.sw.off()
+            # self.urukul2_ch0.sw.on()
+            self.zotino0.write_dac(31, 5.0)  # set RF switch to B2 DDS
+            # self.zotino0.write_dac(31, 0.0)  # set RF switch to B2 AWG
+            self.zotino0.load()
+
+            # Raman 1; B3
+            self.urukul1_ch3.init()
+            self.urukul1_ch3.set_att(0 * dB)
+            self.urukul1_ch3.set(frequency=FrequencyRamanB3, amplitude=AmplitudeRamanB3, phase_mode=2)
+            self.urukul1_ch3.sw.off()
+            self.zotino0.write_dac(29, 5.0)  # set RF switch to B3 DDS
+            # self.zotino0.write_dac(29, 0.0)  # set RF switch to B3 AWG
+            self.zotino0.load()
+
 
             # 355 Raman 2
             self.ttl6.output()
-
             # AWG trigger
             self.ttl5.output()
-
             # Camera shutter
             self.ttl4.output()
-
             # DET switch
             self.ttl7.output()
 
@@ -1305,7 +1511,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.urukul0_ch1.sw.on()
             self.ttl7.on()
             self.urukul0_ch3.sw.on()
-            self.ttl6.on()
+            self.ttl6.on() # Turn on Raman 2 for trap conditioning
             # self.urukul2_ch2.sw.on()
             # self.zotino0.write_dac(26, 5.0)  # 26/07/13 gt: turning on GOP switch
             # self.zotino0.load()
@@ -1338,8 +1544,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.urukul0_ch1.set_att(0 * dB)  # Doppler
             # self.urukul0_ch2.set_att(0 * dB) # 935
             self.urukul0_ch1.set(frequency=doppler_freq, amplitude=doppler_amp, phase_mode=2)
-            self.urukul0_ch1.sw.on()  # can't use dictionary under kernel
-            # self.urukul0_ch2.sw.on()
+            self.urukul0_ch1.sw.on()
 
             if checkCameraDetection:
                 # delay(6 * ms)
@@ -1348,7 +1553,6 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 delay(doppler_time)
 
             self.urukul0_ch1.sw.off()
-            # self.urukul0_ch2.sw.off()
 
             self.urukul2_ch2.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
             self.urukul2_ch2.set_att(0 * dB)
@@ -1496,98 +1700,197 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #     self.urukul2_ch2.sw.off()
 
 
-                ## For multiple DDS, simultaneous SBC ( B1, A16, B2 )
+                ## For multiple DDS, simultaneous SBC ( B1 center - com, A16 bottom- rocking, B2 top - zigzag )
 
-                    # # # # # Outer 1
-                    self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
-                    self.urukul2_ch1.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
-                    self.urukul1_ch3.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # # # # # Outer 1
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # self.urukul1_ch3.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
 
-                    for cyc in range(50):
-                        self.urukul2_ch0.sw.on()
-                        self.urukul2_ch1.sw.on()
-                        self.urukul1_ch3.sw.on()
-                        self.ttl6.on()
-                        # delay(SBCTime)
-                        delay(0.01 * ms)
-                        # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
-                        self.urukul2_ch0.sw.off()
-                        self.urukul2_ch1.sw.off()
-                        self.urukul1_ch3.sw.off()
-                        self.ttl6.off()
-                        # GOP
-                        self.urukul2_ch2.sw.on()
-                        delay(0.05 * ms)  # prev 0.03ms need strong OP power
-                        self.urukul2_ch2.sw.off()
+                # 6 ions, each cooling one set of (x, y) modes
+                # COM: A14; 2 (tilt): B3; 3: B1; 4: A15, 5: B2, 6 (zig-zag): A16
 
-                    # # # # # Inner 1
-                    # # # #
-                    self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
-                    self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
-                    self.urukul1_ch3.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # A14
+                self.urukul0_ch2.set(frequency=SBCFrequencyO1, amplitude=SBCOverallFactor * SBCAmplitude355_1, phase_mode=2)
+                # B3
+                self.urukul1_ch3.set(frequency=SBCFrequencyO2, amplitude=SBCOverallFactor * SBCAmplitude355_2, phase_mode=2)
+                # B1
+                self.urukul1_ch0.set(frequency=SBCFrequencyO3, amplitude=SBCOverallFactor * SBCAmplitude355_3, phase_mode=2)
+                # A15
+                self.urukul2_ch1.set(frequency=SBCFrequencyO4, amplitude=SBCOverallFactor * SBCAmplitude355_4, phase_mode=2)
+                # B2
+                self.urukul2_ch0.set(frequency=SBCFrequencyO5, amplitude=SBCOverallFactor * SBCAmplitude355_5, phase_mode=2)
+                # A16
+                self.urukul0_ch0.set(frequency=SBCFrequencyO6, amplitude=SBCOverallFactor * SBCAmplitude355_6, phase_mode=2)
 
-                    for cyc in range(50):
-                        self.urukul2_ch0.sw.on()
-                        self.urukul2_ch1.sw.on()
-                        self.urukul1_ch3.sw.on()
 
-                        self.ttl6.on()
-                        # self.ttl5.on()
-                        # delay(SBCTime)
-                        delay(0.005 * ms)
-                        self.urukul2_ch0.sw.off()
-                        self.urukul2_ch1.sw.off()
-                        self.urukul1_ch3.sw.off()
-                        self.ttl6.off()
+                # # B1
+                # self.urukul1_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # # A16
+                # # self.urukul0_ch0.set(frequency=189.42 * MHz, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # self.urukul0_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # # B2
+                # # self.urukul2_ch0.set(frequency=189.505* MHz, amplitude=SBCAmplitude355_1, phase_mode=2)
 
-                        self.urukul2_ch2.sw.on()  # GOP
-                        delay(0.05 * ms)
-                        self.urukul2_ch2.sw.off()
-                    # # # # #
-                    # #  # # # Outer1 2nd stage
-                    self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
-                    self.urukul2_ch1.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
-                    self.urukul1_ch3.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                for cyc in range(50):
+                    self.urukul0_ch2.sw.on()
+                    self.urukul1_ch3.sw.on()
+                    self.urukul1_ch0.sw.on()
+                    self.urukul2_ch1.sw.on()
+                    self.urukul2_ch0.sw.on()
+                    self.urukul0_ch0.sw.on()
+                    self.ttl6.on()
 
-                    for cyc in range(25):
-                        self.urukul2_ch0.sw.on()
-                        self.urukul2_ch1.sw.on()
-                        self.urukul1_ch3.sw.on()
-                        self.ttl6.on()
-                        delay(0.025 * ms)
-                        # delay(SBCTime)
-                        # delay(0.003*ms*np.sqrt(80/(80-cyc*1.0)))
-                        self.urukul2_ch0.sw.off()
-                        self.urukul2_ch1.sw.off()
-                        self.urukul1_ch3.sw.off()
-                        self.ttl6.off()
-                        # GOP
-                        self.urukul2_ch2.sw.on()
-                        delay(0.05 * ms)  # prev 0.03ms need strong OP power
-                        self.urukul2_ch2.sw.off()
-                    # # # # # # #
-                    # # # # # # # # #
-                    # # # Inner1 2nd stage
-                    self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
-                    self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
-                    self.urukul1_ch3.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                    delay(SBCTime_1)
+                    # delay(0.05 * ms)
 
-                    for cyc in range(15):
-                        self.urukul2_ch0.sw.on()
-                        self.urukul2_ch1.sw.on()
-                        self.urukul1_ch3.sw.on()
-                        self.ttl6.on()
-                        # self.ttl5.on()
-                        delay(0.02 * ms)
-                        self.urukul2_ch0.sw.off()
-                        self.urukul2_ch1.sw.off()
-                        self.urukul1_ch3.sw.off()
-                        self.ttl6.off()
+                    self.urukul0_ch2.sw.off()
+                    self.urukul1_ch3.sw.off()
+                    self.urukul1_ch0.sw.off()
+                    self.urukul2_ch1.sw.off()
+                    self.urukul2_ch0.sw.off()
+                    self.urukul0_ch0.sw.off()
+                    self.ttl6.off()
+                    # GOP
+                    self.urukul2_ch2.sw.on()
+                    delay(0.05 * ms)  # prev 0.03ms need strong OP power
+                    self.urukul2_ch2.sw.off()
 
-                        # GOP
-                        self.urukul2_ch2.sw.on()
-                        delay(0.05 * ms)
-                        self.urukul2_ch2.sw.off()
+                # # # # # Inner 1
+                # # # #
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # self.urukul1_ch3.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+
+                # A14
+                self.urukul0_ch2.set(frequency=SBCFrequencyI1, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_1, phase_mode=2)
+                # B3
+                self.urukul1_ch3.set(frequency=SBCFrequencyI2, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_2, phase_mode=2)
+                # B1
+                self.urukul1_ch0.set(frequency=SBCFrequencyI3, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_3, phase_mode=2)
+                # A15
+                self.urukul2_ch1.set(frequency=SBCFrequencyI4, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_4, phase_mode=2)
+                # B2
+                self.urukul2_ch0.set(frequency=SBCFrequencyI5, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_5, phase_mode=2)
+                # A16
+                self.urukul0_ch0.set(frequency=SBCFrequencyI6, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_6, phase_mode=2)
+
+                for cyc in range(50):
+                    self.urukul0_ch2.sw.on()
+                    self.urukul1_ch3.sw.on()
+                    self.urukul1_ch0.sw.on()
+                    self.urukul2_ch1.sw.on()
+                    self.urukul2_ch0.sw.on()
+                    self.urukul0_ch0.sw.on()
+                    self.ttl6.on()
+
+                    delay(SBCTime_1)
+                    # delay(0.05 * ms)
+
+                    self.urukul0_ch2.sw.off()
+                    self.urukul1_ch3.sw.off()
+                    self.urukul1_ch0.sw.off()
+                    self.urukul2_ch1.sw.off()
+                    self.urukul2_ch0.sw.off()
+                    self.urukul0_ch0.sw.off()
+                    self.ttl6.off()
+
+                    self.urukul2_ch2.sw.on()  # GOP
+                    delay(0.05 * ms)
+                    self.urukul2_ch2.sw.off()
+
+                # # # # #
+                # #  # # # Outer1 2nd stage
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+                # self.urukul1_ch3.set(frequency=SBCFrequency355_1, amplitude=SBCAmplitude355_1, phase_mode=2)
+
+                # A14
+                self.urukul0_ch2.set(frequency=SBCFrequencyO1, amplitude=SBCOverallFactor * SBCAmplitude355_1, phase_mode=2)
+                # B3
+                self.urukul1_ch3.set(frequency=SBCFrequencyO2, amplitude=SBCOverallFactor * SBCAmplitude355_2, phase_mode=2)
+                # B1
+                self.urukul1_ch0.set(frequency=SBCFrequencyO3, amplitude=SBCOverallFactor * SBCAmplitude355_3, phase_mode=2)
+                # A15
+                self.urukul2_ch1.set(frequency=SBCFrequencyO4, amplitude=SBCOverallFactor * SBCAmplitude355_4, phase_mode=2)
+                # B2
+                self.urukul2_ch0.set(frequency=SBCFrequencyO5, amplitude=SBCOverallFactor * SBCAmplitude355_5, phase_mode=2)
+                # A16
+                self.urukul0_ch0.set(frequency=SBCFrequencyO6, amplitude=SBCOverallFactor * SBCAmplitude355_6, phase_mode=2)
+
+                for cyc in range(25):
+                    self.urukul0_ch2.sw.on()
+                    self.urukul1_ch3.sw.on()
+                    self.urukul1_ch0.sw.on()
+                    self.urukul2_ch1.sw.on()
+                    self.urukul2_ch0.sw.on()
+                    self.urukul0_ch0.sw.on()
+                    self.ttl6.on()
+
+                    # delay(0.08 * ms)
+                    delay(SBCTime_2)
+
+                    self.urukul0_ch2.sw.off()
+                    self.urukul1_ch3.sw.off()
+                    self.urukul1_ch0.sw.off()
+                    self.urukul2_ch1.sw.off()
+                    self.urukul2_ch0.sw.off()
+                    self.urukul0_ch0.sw.off()
+                    self.ttl6.off()
+                    # GOP
+                    self.urukul2_ch2.sw.on()
+                    delay(0.05 * ms)  # prev 0.03ms need strong OP power
+                    self.urukul2_ch2.sw.off()
+
+                # # # # # # #
+                # # # # # # # # #
+                # # # Inner1 2nd stage
+                # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # self.urukul1_ch3.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
+
+                # A14
+                self.urukul0_ch2.set(frequency=SBCFrequencyI1, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_1,
+                                     phase_mode=2)
+                # B3
+                self.urukul1_ch3.set(frequency=SBCFrequencyI2, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_2,
+                                     phase_mode=2)
+                # B1
+                self.urukul1_ch0.set(frequency=SBCFrequencyI3, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_3,
+                                     phase_mode=2)
+                # A15
+                self.urukul2_ch1.set(frequency=SBCFrequencyI4, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_4,
+                                     phase_mode=2)
+                # B2
+                self.urukul2_ch0.set(frequency=SBCFrequencyI5, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_5,
+                                     phase_mode=2)
+                # A16
+                self.urukul0_ch0.set(frequency=SBCFrequencyI6, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_6,
+                                     phase_mode=2)
+
+                for cyc in range(15):
+                    self.urukul0_ch2.sw.on()
+                    self.urukul1_ch3.sw.on()
+                    self.urukul1_ch0.sw.on()
+                    self.urukul2_ch1.sw.on()
+                    self.urukul2_ch0.sw.on()
+                    self.urukul0_ch0.sw.on()
+                    self.ttl6.on()
+
+                    # delay(0.08 * ms)
+                    delay(SBCTime_2)
+
+                    self.urukul0_ch2.sw.off()
+                    self.urukul1_ch3.sw.off()
+                    self.urukul1_ch0.sw.off()
+                    self.urukul2_ch1.sw.off()
+                    self.urukul2_ch0.sw.off()
+                    self.urukul0_ch0.sw.off()
+                    self.ttl6.off()
+                    # GOP
+                    self.urukul2_ch2.sw.on()
+                    delay(0.05 * ms)
+                    self.urukul2_ch2.sw.off()
 
 
                 # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)
@@ -1805,11 +2108,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # self.urukul0_ch2.sw.off()
 
             # OP state prep with 935
-            if OP_time > 0.01 * us:
+            if StatePrepOP and OP_time > 0.01 * us:
                 self.urukul2_ch2.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
-                # self.urukul0_ch2.set(frequency=freq_935, amplitude=0.8, phase_mode=2)
                 self.urukul2_ch2.set_att(0 * dB)
-                # self.urukul0_ch2.set_att(0 * dB)
 
                 self.zotino0.write_dac(26, 5.0)  # 26/07/13 gt: turning on GOP switch
                 self.zotino0.load()
@@ -1825,27 +2126,27 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 self.zotino0.load()
                 delay(0.5 * ms)
 
-            ####LOP; can pump globally by sequentially pumping each ion; locations determined by the frequency array
-            # if OP_time > 0.01 * us:
-            #     for f in [203.92-0.4-0.55, 200.25-0.55, 197.5-0.4-0.55] :
-            #         self.urukul1_ch1.set(frequency=f * MHz, amplitude=0.8, phase_mode=2)
-            #         self.urukul1_ch1.set_att(0 * dB)
-            #         # self.ttl5.on()
-            #         # delay(0.1 * ms)
-            #         self.urukul1_ch1.sw.on()
-            #         # self.urukul1_ch3.sw.on()
-            #         # self.urukul0_c.sw.on()
-            #         delay(OP_time)
-            #         # delay(0.0001 * ms)
-            #         #
-            #         delay_mu(1)
-            #         self.urukul1_ch1.set(frequency=f * MHz, amplitude=0.0001, phase_mode=2)
-            #         self.urukul1_ch1.set_att(30 * dB)
-            #         self.urukul1_ch1.sw.off()
-            #
-            #         delay(0.1 * ms)
-            #
-            #     delay(0.5 * ms)
+            ###LOP; can pump globally by sequentially pumping each ion; locations determined by the frequency array
+            if StatePrepLOP and LOP_time > 0.01 * us:
+                for f in [203.92-0.4-0.55, 200.25-0.55, 197.5-0.4-0.55] :
+                    self.urukul1_ch1.set(frequency=f * MHz, amplitude=0.8, phase_mode=2)
+                    self.urukul1_ch1.set_att(0 * dB)
+                    # self.ttl5.on()
+                    # delay(0.1 * ms)
+                    self.urukul1_ch1.sw.on()
+                    # self.urukul1_ch3.sw.on()
+                    # self.urukul0_c.sw.on()
+                    delay(OP_time)
+                    # delay(0.0001 * ms)
+                    #
+                    delay_mu(1)
+                    self.urukul1_ch1.set(frequency=f * MHz, amplitude=0.0001, phase_mode=2)
+                    self.urukul1_ch1.set_att(30 * dB)
+                    self.urukul1_ch1.sw.off()
+
+                    delay(0.1 * ms)
+
+                delay(0.5 * ms)
 
             # delay(-1*us) # important for syncing. Must be before setting up the DDS config or else there is some gradual ampltiude ramp of 435 DDS
 
@@ -1867,7 +2168,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
 
                 # # # # Raman 1 ch 1-RSB
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # # self.urukul2_ch0.set_att(0 * dB)
                 # # self.urukul2_ch0.sw.on()  # Raman 1
                 # # self.ttl6.on()  # Raman 2
@@ -1878,7 +2179,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #
                 # # Raman pulse with MW
                 # # # # Raman 1 ch 1
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # # self.urukul2_ch0.set_att(0 * dB)
                 # # self.urukul2_ch0.sw.on()
                 # # self.ttl6.on()
@@ -1911,7 +2212,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
                 ###### wait time with 355 on ##########
 
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # self.urukul2_ch0.set_att(0 * dB)
                 # self.urukul2_ch0.sw.on() # Raman 1
                 # self.ttl6.on() # Raman 2
@@ -1925,7 +2226,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
                 # # Raman pulse with MW
                 # # # Raman 1 ch 1
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # self.urukul2_ch0.set_att(0 * dB)
                 # self.urukul2_ch0.sw.on()
                 # self.ttl6.on()
@@ -1935,7 +2236,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # self.ttl6.off()
                 #
                 # # # # Raman 1 ch 1-RSB
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # # self.urukul2_ch0.set_att(0 * dB)
                 # # self.urukul2_ch0.sw.on()  # Raman 1
                 # # self.ttl6.on()  # Raman 2
@@ -1946,7 +2247,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
 
                 # #CSBC LOP
-                # # self.urukul2_ch0.set(frequency= AmplitudeRaman1, amplitude=SBCAmplitude355_2, phase_mode=2)
+                # # self.urukul2_ch0.set(frequency= AmplitudeRamanB2, amplitude=SBCAmplitude355_2, phase_mode=2)
                 # self.urukul2_ch0.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2)  # B1
                 #
                 # # self.urukul2_ch1.set(frequency=SBCFrequency355_2, amplitude=SBCAmplitude355_2, phase_mode=2) # A16
@@ -1987,21 +2288,23 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # # # # Raman Ramsey # # # # # #
                 # # #
                 ########## Ramsey first pi/2 ##############
-                self.urukul2_ch1.set_att(0 * dB)
-                # self.urukul2_ch0.set(frequency=RamseyFrequency435 ,phase=0.0, amplitude=RamseyAmplitude435, phase_mode=2)
-                self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1, phase_mode=2)
-                # self.urukul2_ch1.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1, phase_mode=2)
+                # A16
+                # self.urukul0_ch0.set_att(0 * dB)
+                # B1
+                # self.urukul1_ch0.set(frequency=RamseyFrequency435 ,phase=0.0, amplitude=RamseyAmplitude435, phase_mode=2)
+                self.urukul1_ch0.set(frequency=FrequencyRamanB1, phase=0.0, amplitude=AmplitudeRamanB1, phase_mode=2)
+                # self.urukul0_ch0.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2, phase_mode=2)
 
-                self.urukul2_ch0.set_att(0 * dB)
-                self.urukul2_ch0.sw.on()
-                # self.urukul2_ch1.sw.on() # A16
+                self.urukul1_ch0.set_att(0 * dB)
+                self.urukul1_ch0.sw.on()
+                # self.urukul0_ch0.sw.on() # A16
 
                 self.ttl6.on()
                 delay(0.3 * us)  # AOM delay
                 delay(Raman_time)
                 # delay(Raman_time)
-                self.urukul2_ch0.sw.off()
-                # self.urukul2_ch1.sw.off()
+                self.urukul1_ch0.sw.off()
+                # self.urukul0_ch0.sw.off()
 
                 self.ttl6.off()
 
@@ -2016,8 +2319,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # for n in range(10):
                 #     # Calculate amplitude scaling factor (0.0 up to ~0.975)
                 #     amp_scale_up = np.sin(math.pi / 2.0 * n / 10.0) ** 2
-                #     self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0,
-                #                                      amplitude=AmplitudeRaman1 * amp_scale_up, phase_mode=2)
+                #     self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0,
+                #                                      amplitude=AmplitudeRamanB2 * amp_scale_up, phase_mode=2)
                 #     # At first step, set attenuation and turn on switches
                 #     if n == 0:
                 #         self.urukul2_ch0.set_att(0 * dB)
@@ -2028,7 +2331,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #     delay(1 * us * (n + 1) / 10.0)
                 # # --- 2. FLAT TOP ---
                 # # Ensure full amplitude
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1,
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2,
                 #                                  phase_mode=2)
                 # # Ensure att and switches are on (matching old logic)
                 # self.urukul2_ch0.set_att(0 * dB)
@@ -2041,8 +2344,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # for n in range(10):
                 #     # Calculate amplitude scaling factor (~0.975 down to 0.0)
                 #     amp_scale_down = 1.0 - np.cos(math.pi / 2.0 * (1.0 - (n + 1) / 10.0)) ** 2
-                #     self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0,
-                #                                      amplitude=AmplitudeRaman1 * amp_scale_down, phase_mode=2)
+                #     self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0,
+                #                                      amplitude=AmplitudeRamanB2 * amp_scale_down, phase_mode=2)
                 #
                 #     delay(0.3 * us)  # AOM delay
                 #     delay(1 * us * (n + 1) / 10.0)
@@ -2054,7 +2357,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #
                 # self.urukul2_ch1.set_att(0 * dB)
                 # # self.urukul2_ch0.set(frequency=RamseyFrequency435 ,phase=0.0, amplitude=RamseyAmplitude435, phase_mode=2)
-                # self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=0.0, amplitude=AmplitudeRamanA16, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=0.0, amplitude=AmplitudeRamanA15, phase_mode=2)
                 # self.urukul2_ch1.set_att(0 * dB)
                 # self.urukul2_ch1.sw.on()
                 # self.ttl6.on()
@@ -2068,7 +2371,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # for i in range(n):
                 #     delay(wait_time / 2 / n)
                 #
-                #     self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.5*(i%2), amplitude=AmplitudeRaman1, phase_mode=2)
+                #     self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.5*(i%2), amplitude=AmplitudeRamanB2, phase_mode=2)
                 #     # self.urukul1_ch2.set(frequency=MW_freq, phase = 0.0, amplitude=RamseyAmplitude435, phase_mode=2)
                 #     self.urukul2_ch0.set_att(0 * dB)
                 #     self.ttl6.on()
@@ -2085,21 +2388,21 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 delay(wait_time)
 
                 #########  Ramsey second pi/2 #######
-                # self.urukul2_ch0.set(frequency=RamseyFrequency435, phase= phase1,  amplitude=RamseyAmplitude435, phase_mode=2)
-                self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=phase2, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul1_ch0.set(frequency=RamseyFrequency435, phase= phase1,  amplitude=RamseyAmplitude435, phase_mode=2)
+                self.urukul1_ch0.set(frequency=FrequencyRamanB1, phase=phase2, amplitude=AmplitudeRamanB1, phase_mode=2)
                 # self.urukul1_ch2.set_att(0 * dB)
-                # self.urukul2_ch1.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul0_ch0.set(frequency=FrequencyRamanB1, phase=0.0, amplitude=AmplitudeRamanB1, phase_mode=2)
 
-                self.urukul2_ch0.set_att(0 * dB)
-                self.urukul2_ch0.sw.on()
-                # self.urukul2_ch1.sw.on()
+                self.urukul1_ch0.set_att(0 * dB)
+                self.urukul1_ch0.sw.on()
+                # self.urukul0_ch0.sw.on()
 
                 self.ttl6.on()
                 delay(0.3 * us)  # AOM delay
                 delay(Raman_time)
                 # delay_mu(1)
-                self.urukul2_ch0.sw.off()
-                # self.urukul2_ch1.sw.off()
+                self.urukul1_ch0.sw.off()
+                # self.urukul0_ch0.sw.off()
 
                 self.ttl6.off()
 
@@ -2120,9 +2423,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
 
                 ########## First pi/2 Pulse ##########
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=phase1_compensated, amplitude=AmplitudeRaman1,
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=phase1_compensated, amplitude=AmplitudeRamanB2,
                 #                      phase_mode=2)
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1,
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2,
                 #                      phase_mode=2)
                 # self.urukul2_ch0.set_att(0 * dB)
                 # # self.ttl5.on()
@@ -2141,9 +2444,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # delay(wait_time)
                 #
                 # ########## Second pi/2 Pulse ##########
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=phase2_compensated, amplitude=AmplitudeRaman1,
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=phase2_compensated, amplitude=AmplitudeRamanB2,
                 # #                      phase_mode=2)
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=phase2, amplitude=AmplitudeRaman1,
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=phase2, amplitude=AmplitudeRamanB2,
                 #                      phase_mode=2)
                 # self.urukul2_ch0.set_att(0 * dB)
                 # self.ttl6.on()  # Raman 2
@@ -2166,8 +2469,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # for n in range(10):
                 #     # Calculate amplitude scaling factor (0.0 up to ~0.975)
                 #     amp_scale_up = np.sin(math.pi / 2.0 * n / 10.0) ** 2
-                #     self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0,
-                #                          amplitude=AmplitudeRaman1 * amp_scale_up, phase_mode=2)
+                #     self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0,
+                #                          amplitude=AmplitudeRamanB2 * amp_scale_up, phase_mode=2)
                 #     # At first step, set attenuation and turn on switches
                 #     if n == 0:
                 #         self.urukul2_ch0.set_att(0 * dB)
@@ -2178,7 +2481,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #     delay(1 * us * (n + 1) / 10.0)
                 # # --- 2. FLAT TOP ---
                 # # Ensure full amplitude
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1,
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2,
                 #                      phase_mode=2)
                 # # Ensure att and switches are on (matching old logic)
                 # self.urukul2_ch0.set_att(0 * dB)
@@ -2191,8 +2494,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # for n in range(10):
                 #     # Calculate amplitude scaling factor (~0.975 down to 0.0)
                 #     amp_scale_down = 1.0 - np.cos(math.pi / 2.0 * (1.0 - (n + 1) / 10.0)) ** 2
-                #     self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0,
-                #                          amplitude=AmplitudeRaman1 * amp_scale_down, phase_mode=2)
+                #     self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0,
+                #                          amplitude=AmplitudeRamanB2 * amp_scale_down, phase_mode=2)
                 #
                 #     delay(0.3 * us)  # AOM delay
                 #     delay(1 * us * (n + 1) / 10.0)
@@ -2203,7 +2506,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
 
                 # # self.urukul2_ch0.set(frequency=RamseyFrequency435 ,phase=0.0, amplitude=RamseyAmplitude435, phase_mode=2)
-                # self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=0.0, amplitude=AmplitudeRamanA16, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=0.0, amplitude=AmplitudeRamanA15, phase_mode=2)
                 # self.urukul2_ch1.set_att(0 * dB)
                 # self.urukul2_ch1.sw.on()
                 # self.ttl6.on()
@@ -2219,11 +2522,11 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #
                 # # # delay(10*us)
                 # # # # # # Raman 1 ch 1 -RSB
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1,phase=0.0, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2,phase=0.0, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # # self.urukul2_ch0.set_att(0 * dB)
                 # # ### extra
-                # # self.urukul2_ch1.set(frequency=FrequencyRamanA16 , phase=phase2,
-                # #                      amplitude=AmplitudeRamanA16 , phase_mode=2)
+                # # self.urukul2_ch1.set(frequency=FrequencyRamanA15 , phase=phase2,
+                # #                      amplitude=AmplitudeRamanA15 , phase_mode=2)
                 # # self.urukul2_ch1.set_att(0 * dB)
                 # # self.urukul2_ch1.sw.on()  # Raman 1,ch2
                 # # ### extra -end
@@ -2239,7 +2542,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # # ### extra -end
                 #
                 # # # Raman 1 ch 2-RSB
-                # # self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase= 0.0, amplitude=AmplitudeRamanA16, phase_mode=2)
+                # # self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase= 0.0, amplitude=AmplitudeRamanA15, phase_mode=2)
                 # # self.urukul2_ch1.set_att(0 * dB)
                 # # self.urukul2_ch1.sw.on()  # Raman 1
                 # # self.ttl6.on()  # Raman 2
@@ -2272,9 +2575,9 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #
                 #     # pure RSB decoupling
                 #     # self.urukul1_ch2.set_att(0 * dB)
-                #     # # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1,
+                #     # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2,
                 #     # #                      phase_mode=2)
-                #     # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=(0.0 + np.pi / 2.0 * (n % 2)), amplitude=AmplitudeRaman1,phase_mode=2)
+                #     # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=(0.0 + np.pi / 2.0 * (n % 2)), amplitude=AmplitudeRamanB2,phase_mode=2)
                 #     # # self.urukul1_ch2.set(frequency=MW_freq, amplitude=RamseyAmplitude435, phase_mode=2)
                 #     # self.urukul2_ch0.set_att(0 * dB)
                 #     # self.urukul2_ch0.sw.on()
@@ -2372,8 +2675,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #
                 # # wait time with 355 on
                 # #
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase= 0.0,  amplitude=AmplitudeRaman1*GlobalSidebandAmpScale, phase_mode=2) #RSB
-                # # self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=phase2, amplitude=AmplitudeRamanA16*LighShiftFactor*GlobalSidebandAmpScale, phase_mode=2) #BSB
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase= 0.0,  amplitude=AmplitudeRamanB2*GlobalSidebandAmpScale, phase_mode=2) #RSB
+                # # self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=phase2, amplitude=AmplitudeRamanA15*LighShiftFactor*GlobalSidebandAmpScale, phase_mode=2) #BSB
                 # # self.urukul2_ch0.set_att(0 * dB)
                 # # self.urukul2_ch1.set_att(0 * dB)
                 # # self.urukul2_ch0.sw.on() # Raman 1 ch1
@@ -2387,11 +2690,11 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 #
                 # #
                 # # # # # # # Raman 1 ch 1-RSB
-                # # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=phase1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # # self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=phase1, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # # self.urukul2_ch0.set_att(0 * dB)
                 # # ### extra
-                # # self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=phase2,
-                # #                      amplitude=AmplitudeRamanA16, phase_mode=2)
+                # # self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=phase2,
+                # #                      amplitude=AmplitudeRamanA15, phase_mode=2)
                 # # self.urukul2_ch1.set_att(0 * dB)
                 # # self.urukul2_ch1.sw.on()  # Raman 1,ch2
                 # # ### extra -end
@@ -2407,7 +2710,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # # ### extra -end
                 #
                 # # # Raman 1 ch 2-RSB
-                # # self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=np.pi-(SBCAmplitude935-0.4)*np.pi/0.8, amplitude=AmplitudeRamanA16, phase_mode=2)
+                # # self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=np.pi-(SBCAmplitude935-0.4)*np.pi/0.8, amplitude=AmplitudeRamanA15, phase_mode=2)
                 # # self.urukul2_ch1.set_att(0 * dB)
                 # # self.urukul2_ch1.sw.on()  # Raman 1
                 # # self.ttl6.on()  # Raman 2
@@ -2421,7 +2724,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 # # # # delay(10 * us)
                 # delay(wait_time)
                 # # self.urukul2_ch0.set(frequency=RamseyFrequency435, phase= phase1,  amplitude=RamseyAmplitude435, phase_mode=2)
-                # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
                 # # self.urukul1_ch2.set_att(0 * dB)
                 # self.urukul2_ch0.set_att(0 * dB)
                 # self.urukul2_ch0.sw.on()
@@ -2439,7 +2742,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             # if choice435==1:
             # self.urukul0_ch0.set(frequency=Frequency435, amplitude=Amplitude435, phase_mode=2)
             # self.urukul0_ch0.sw.on()
-            # self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2) # Raman 1
+            # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2) # Raman 1
             # self.urukul2_ch0.set_att(0 * dB) # Raman 1
             # self.urukul2_ch0.sw.on()  # Raman 1
             # self.ttl6.on()  # Raman 2
@@ -2491,8 +2794,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             # delay(wait_time)
             # self.ttl5.off()
 
-            if RamseyCheck and EnableAWG:  # for now only on B1
-                self.zotino0.write_dac(31, 0.0)  # switch to AWG
+            if RamseyCheck and EnableAWG:  # for now only on B2
+                self.zotino0.write_dac(31, 0.0)  # switch to AWG B2
                 self.zotino0.load()
                 delay(0.5 * ms)
 
@@ -2520,7 +2823,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 self.ttl5.off()
 
                 # delay(0.5 * ms)
-                self.zotino0.write_dac(31, 5.0)  # set back to DDS
+                self.zotino0.write_dac(31, 5.0)  # set back to DDS B2
                 self.zotino0.load()
                 delay(0.5 * ms)
 
@@ -2536,122 +2839,93 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
             if checkAllZ_calib and AllZ_calib_flag:
                 # Raman 1 ch 1
-                self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
-                self.urukul2_ch0.set_att(0 * dB)
-                self.urukul2_ch0.sw.on()  # Raman 1
+                self.urukul1_ch0.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanB1, phase_mode=2)
+                self.urukul1_ch0.set_att(0 * dB)
+                self.urukul1_ch0.sw.on()  # Raman 1
                 self.ttl6.on()  # Raman 2
                 delay(0.3 * us)  # AOM delay
 
                 delay(self.AllZ_calib_Raman_t)
 
-                self.urukul2_ch0.sw.off()  # Raman 1
-                self.ttl6.off()  # Raman 25*us
+                self.urukul1_ch0.sw.off()  # Raman 1
+                # self.ttl6.off()  # Raman 25*us
 
             # Raman original
-            if (B1check or A16check or B2check or A15check) \
+            if (A14check or A15check or A16check or B1check  or B2check or B3check) \
                     and Raman_time > 0.01 * us and not EnableAWG and not RamseyCheck and not AllZ_calib_flag:
 
                 delay(0.001 * ms)
 
-                if not MScheck: # Regular Raman interaction
-                    # Raman 1; B1
-                    self.urukul2_ch0.set(frequency=FrequencyRaman1, amplitude=AmplitudeRaman1, phase_mode=2)
-                    self.urukul2_ch0.set_att(0* dB)
-                    # A16
-                    self.urukul2_ch1.set(frequency=FrequencyRamanA16, amplitude=AmplitudeRamanA16, phase_mode=2)
-                    self.urukul2_ch1.set_att(0 * dB)
-                    # B2
-                    self.urukul1_ch3.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
-                    self.urukul1_ch3.set_att(0 * dB)
-                    # A15
-                    self.urukul2_ch3.set(frequency=FrequencyRamanA15, amplitude=AmplitudeRamanA15, phase_mode=2)
-                    self.urukul2_ch3.set_att(0 * dB)
+                # COM: A14; 2 (tilt): B3; 3: B1; 4: A15, 5: B2, 6 (zig-zag): A16
 
-                    # self.ttl5.on() # diagnostic/awg trigger (remember to reconnect to AWG)
+                # A14
+                # self.urukul0_ch2.set(frequency=FrequencyRamanA14, amplitude=AmplitudeRamanA14, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyO1, amplitude=SBCOverallFactor * SBCAmplitude355_1, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyI1, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_1, phase_mode=2)
+                self.urukul0_ch2.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanA14, phase_mode=2)
+                self.urukul0_ch2.set_att(0 * dB)
 
-                    self.ttl6.on()  # Raman 2
-                    delay(0.025 * us)
+                # A15
+                # self.urukul2_ch1.set(frequency=FrequencyRamanA15, amplitude=AmplitudeRamanA15, phase_mode=2)
+                # self.urukul2_ch1.set(frequency=SBCFrequencyO4, amplitude=SBCOverallFactor * SBCAmplitude355_4, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyI4, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_4, phase_mode=2)
+                self.urukul2_ch1.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanA15, phase_mode=2)
+                self.urukul2_ch1.set_att(0 * dB)
 
-                    if B1check: self.urukul2_ch0.sw.on()  # B1
-                    if A16check: self.urukul2_ch1.sw.on()  # A16
-                    if B2check: self.urukul1_ch3.sw.on()  # B2
-                    if A15check: self.urukul2_ch3.sw.on()  # A15
+                # A16
+                self.urukul0_ch0.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanA16, phase_mode=2)
+                # self.urukul0_ch0.set(frequency=SBCFrequencyO6, amplitude=SBCOverallFactor * SBCAmplitude355_3, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyI6, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_6, phase_mode=2)
+                self.urukul0_ch0.set_att(0 * dB)
 
-                    delay(0.3 * us)  # AOM delay
+                # Raman 1; B1
+                self.urukul1_ch0.set(frequency=FrequencyRamanA16, amplitude=AmplitudeRamanB1, phase_mode=2)
+                # self.urukul1_ch0.set(frequency=SBCFrequencyO3, amplitude=SBCOverallFactor * SBCAmplitude355_1, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyI3, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_3, phase_mode=2)
+                # self.urukul1_ch0.set(frequency=SBCFrequencyO1, amplitude=AmplitudeRamanB1, phase_mode=2)
+                self.urukul1_ch0.set_att(0 * dB)
 
-                    delay(Raman_time)
+                # Raman 1; B2
+                # self.urukul2_ch0.set(frequency=FrequencyRamanB2, amplitude=AmplitudeRamanB2, phase_mode=2)
+                # self.urukul2_ch0.set(frequency=SBCFrequencyO5, amplitude=SBCOverallFactor * SBCAmplitude355_2, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyI5, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_5, phase_mode=2)
+                self.urukul2_ch0.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanB2, phase_mode=2)
+                self.urukul2_ch0.set_att(0 * dB)
 
-                    self.ttl6.off()  # Raman 2 off
-                    delay(0.1 * us) # noticed on PD that AOMs had a relative shift of ~100 ns in the end
-                    self.urukul2_ch0.sw.off()  # Raman 1
-                    self.urukul2_ch1.sw.off()  # A16
-                    self.urukul1_ch3.sw.off()  # B2
-                    self.urukul2_ch3.sw.off()  # A15
-                    # delay(0.3 * ms) # noticed on PD that AOMs turn off ~300 ns after ttl5 is off
-                    # self.ttl5.off()
-
-                if MScheck:
-                    # # # # Raman 1: ch1 and ch2 on, on DDS; it was done by combining r and b on a PS
-                    # self.urukul2_ch0.set(frequency=FrequencyRaman1, phase= 0.0, amplitude=AmplitudeRaman1*0.50978*1.0/0.8, phase_mode=2)
-                    # self.urukul2_ch0.set(frequency=FrequencyRaman1 - Frequency435 + Bz, phase= 0.0, amplitude=AmplitudeRaman1*GlobalSidebandAmpScale, phase_mode=2)
-                    # self.urukul2_ch0.set_att(0 * dB)
-                    # ## self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase= 0.0, amplitude=AmplitudeRaman1*0.7/0.6, phase_mode=2)
-                    # self.urukul2_ch1.set(frequency=FrequencyRamanA16 + Frequency435 + Bz, phase= phase2, amplitude=AmplitudeRamanA16*LighShiftFactor*GlobalSidebandAmpScale, phase_mode=2)
-                    # self.urukul2_ch1.set_att(0 * dB)
-                    # self.urukul2_ch0.sw.on()# Raman 1
-                    # self.urukul2_ch1.sw.on()# Raman 1,ch2
-                    # self.ttl6.on() # Raman 2
-                    # delay(0.3*us) # AOM delay
-                    # delay(Raman_time)
-                    # self.urukul2_ch0.sw.off() # Raman 1 ch1
-                    # self.urukul2_ch1.sw.off()  # Raman 1ch2
-                    # self.ttl6.off() # Raman 25*us
-
-                    # # #  Parity analysis pulse # Raman 1 ch 1
-                    # self.urukul2_ch0.set(frequency=192.546039253*MHz, phase=phase1, amplitude= 0.5,  phase_mode=2)
-                    # self.urukul2_ch0.set_att(0 * dB)
-                    # self.urukul2_ch0.sw.on()# Raman 1
-                    # self.ttl6.on() # Raman 2
-                    # delay(0.25*us) # AOM delay
-                    # delay(0.0010957*ms)
-                    # #delay(Raman_time)
-                    # self.urukul2_ch0.sw.off() # Raman 1
-                    # self.ttl6.off() # Raman 25*us
+                # B3
+                self.urukul1_ch3.set(frequency=FrequencyRamanB1, amplitude=AmplitudeRamanB3, phase_mode=2)
+                # self.urukul1_ch3.set(frequency=SBCFrequencyO2, amplitude=SBCOverallFactor * SBCAmplitude355_2, phase_mode=2)
+                # self.urukul0_ch2.set(frequency=SBCFrequencyI2, amplitude=SBCOverallFactor * SBCOutToInFactor * SBCAmplitude355_2, phase_mode=2)
+                # self.urukul1_ch3.set(frequency=FrequencyRamanA16, amplitude=AmplitudeRamanA16, phase_mode=2)
+                # self.urukul1_ch3.set_att(0 * dB)
 
 
-                    #### MS with AWG
-                    if EnableAWG:
-                        self.zotino0.write_dac(31, 0.0)  # switch to B1 AWG
-                        self.zotino0.write_dac(30, 0.0)  # A16 AWG
-                        self.zotino0.write_dac(29, 0.0)  # B2 AWG
-                        self.zotino0.write_dac(28, 0.0)  # A15 AWG
-                        self.zotino0.load()
-                        delay(0.5 * ms)
+                # self.ttl5.on() # diagnostic/awg trigger (remember to reconnect to AWG)
 
-                        delay(0.001 * ms)
+                self.ttl6.on()  # Raman 2
+                delay(0.025 * us)
 
-                        self.ttl5.on()  # trigger to AWG/ Raman 1
-                        delay(0.175 * us)  # needed b/c the indiv turns on slightly delayed from the global
-                        # delay(2*us) # adjust for pulse shaping
-                        self.ttl6.on()  # Raman 2 on
-                        delay(0.3 * us)  # AOM delay
+                if A14check: self.urukul0_ch2.sw.on()  # A14
+                if A15check: self.urukul2_ch1.sw.on()  # A15
+                if A16check: self.urukul0_ch0.sw.on()  # A16
+                if B1check: self.urukul1_ch0.sw.on()  # B1
+                if B2check: self.urukul2_ch0.sw.on()  # B2
+                if B3check: self.urukul1_ch3.sw.on()  # B3
 
-                        delay(Raman_time)
+                delay(0.3 * us)  # AOM delay
 
-                        delay(-0.3 * us)  # global was turning off after individual
-                        # delay(6*us) # for pulse shaping
-                        self.ttl6.off()  # Raman 2 off
-                        self.ttl5.off()
+                delay(Raman_time)
 
-                        # delay(0.5 *ms)
-                        self.zotino0.write_dac(31, 5.0)  # set back to DDS
-                        self.zotino0.write_dac(30, 5.0)
-                        self.zotino0.write_dac(29, 5.0)
-                        self.zotino0.write_dac(28, 5.0)
-                        self.zotino0.load()
-                        delay(0.5 * ms)
-
-
+                self.ttl6.off()  # Raman 2 off
+                delay(0.1 * us) # noticed on PD that AOMs had a relative shift of ~100 ns in the end
+                self.urukul0_ch2.sw.off()  # A14
+                self.urukul2_ch1.sw.off()  # A15
+                self.urukul0_ch0.sw.off()  # A16
+                self.urukul1_ch0.sw.off()  # B1
+                self.urukul1_ch0.sw.off()  # B2
+                self.urukul1_ch3.sw.off()  # B3
+                # delay(0.3 * ms) # noticed on PD that AOMs turn off ~300 ns after ttl5 is off
+                # self.ttl5.off()
 
 
             #### Raman with Pulse shapingon DDS ###########
@@ -2663,14 +2937,14 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             #         # Calculate amplitude scaling factor (0.0 up to ~0.975)
             #         amp_scale_up = np.sin(math.pi / 2.0 * n / 10.0) ** 2
             #
-            #         if B1check: self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0,
-            #                                          amplitude=AmplitudeRaman1 * amp_scale_up, phase_mode=2)
-            #         if A16check: self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=0.0,
-            #                                           amplitude=AmplitudeRamanA16 * amp_scale_up, phase_mode=2)
-            #         if B2check: self.urukul1_ch3.set(frequency=FrequencyRamanB2, phase=0.0,
+            #         if B1check: self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0,
             #                                          amplitude=AmplitudeRamanB2 * amp_scale_up, phase_mode=2)
-            #         if A15check: self.urukul2_ch3.set(frequency=FrequencyRamanA15, phase=0.0,
+            #         if A16check: self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=0.0,
             #                                           amplitude=AmplitudeRamanA15 * amp_scale_up, phase_mode=2)
+            #         if B2check: self.urukul1_ch3.set(frequency=FrequencyRamanB3, phase=0.0,
+            #                                          amplitude=AmplitudeRamanB3 * amp_scale_up, phase_mode=2)
+            #         if A15check: self.urukul0_ch2.set(frequency=FrequencyRamanA14, phase=0.0,
+            #                                           amplitude=AmplitudeRamanA14 * amp_scale_up, phase_mode=2)
             #
             #         # At first step, set attenuation and turn on switches
             #         if n == 0:
@@ -2693,13 +2967,13 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             #
             #     # --- 2. FLAT TOP ---
             #     # Ensure full amplitude
-            #     if B1check: self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0, amplitude=AmplitudeRaman1,
+            #     if B1check: self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2,
             #                                      phase_mode=2)
-            #     if A16check: self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=0.0, amplitude=AmplitudeRamanA16,
+            #     if A16check: self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=0.0, amplitude=AmplitudeRamanA15,
             #                                       phase_mode=2)
-            #     if B2check: self.urukul1_ch3.set(frequency=FrequencyRamanB2, phase=0.0, amplitude=AmplitudeRamanB2,
+            #     if B2check: self.urukul1_ch3.set(frequency=FrequencyRamanB3, phase=0.0, amplitude=AmplitudeRamanB3,
             #                                      phase_mode=2)
-            #     if A15check: self.urukul2_ch3.set(frequency=FrequencyRamanA15, phase=0.0, amplitude=AmplitudeRamanA15,
+            #     if A15check: self.urukul0_ch2.set(frequency=FrequencyRamanA14, phase=0.0, amplitude=AmplitudeRamanA14,
             #                                       phase_mode=2)
             #
             #     # Ensure att and switches are on (matching old logic)
@@ -2724,14 +2998,14 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             #         # Calculate amplitude scaling factor (~0.975 down to 0.0)
             #         amp_scale_down = 1.0 - np.cos(math.pi / 2.0 * (1.0 - (n + 1) / 10.0)) ** 2
             #
-            #         if B1check: self.urukul2_ch0.set(frequency=FrequencyRaman1, phase=0.0,
-            #                                          amplitude=AmplitudeRaman1 * amp_scale_down, phase_mode=2)
-            #         if A16check: self.urukul2_ch1.set(frequency=FrequencyRamanA16, phase=0.0,
-            #                                           amplitude=AmplitudeRamanA16 * amp_scale_down, phase_mode=2)
-            #         if B2check: self.urukul1_ch3.set(frequency=FrequencyRamanB2, phase=0.0,
+            #         if B1check: self.urukul2_ch0.set(frequency=FrequencyRamanB2, phase=0.0,
             #                                          amplitude=AmplitudeRamanB2 * amp_scale_down, phase_mode=2)
-            #         if A15check: self.urukul2_ch3.set(frequency=FrequencyRamanA15, phase=0.0,
+            #         if A16check: self.urukul2_ch1.set(frequency=FrequencyRamanA15, phase=0.0,
             #                                           amplitude=AmplitudeRamanA15 * amp_scale_down, phase_mode=2)
+            #         if B2check: self.urukul1_ch3.set(frequency=FrequencyRamanB3, phase=0.0,
+            #                                          amplitude=AmplitudeRamanB3 * amp_scale_down, phase_mode=2)
+            #         if A15check: self.urukul0_ch2.set(frequency=FrequencyRamanA14, phase=0.0,
+            #                                           amplitude=AmplitudeRamanA14 * amp_scale_down, phase_mode=2)
             #
             #         delay(0.3 * us)  # AOM delay
             #         delay(1 * us * (n + 1) / 10.0)
@@ -2746,10 +3020,10 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
             # AWG Raman
             if EnableAWG and not RamseyCheck:
-                self.zotino0.write_dac(31, 0.0)  # switch to B1 AWG
-                self.zotino0.write_dac(30, 0.0)  # A16 AWG
-                self.zotino0.write_dac(29, 0.0)  # B2 AWG
-                self.zotino0.write_dac(28, 0.0)  # A15 AWG
+                self.zotino0.write_dac(31, 0.0)  # switch to B2 AWG
+                self.zotino0.write_dac(30, 0.0)  # A15 AWG
+                self.zotino0.write_dac(29, 0.0)  # B3 AWG
+                self.zotino0.write_dac(28, 0.0)  # A14 AWG
                 self.zotino0.load()
                 delay(0.5 * ms)
 
@@ -2782,7 +3056,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
                 delay(-0.3 * us) # global was turning off after individual
                 # delay(6*us) # for pulse shaping
-                self.ttl6.off()  # Raman 2 off
+                # self.ttl6.off()  # Raman 2 off
                 self.ttl5.off()
 
                 # delay(0.5 *ms)
@@ -2806,19 +3080,21 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 self.urukul0_ch3.sw.off()
                 self.ttl7.off()
 
-            # Doppler + 760/935
+            # Doppler (26/09/16 gt: 935 now moved to Sandia; no AOM switching here)
             self.urukul0_ch1.set(frequency=doppler_freq, amplitude=doppler_amp, phase_mode=2)
-            # self.urukul0_ch2.set(frequency=freq_935, amplitude=amp_935, phase_mode=2)
             self.urukul0_ch1.set_att(0 * dB)
-            # self.urukul0_ch2.set_att(0 * dB)
             self.urukul0_ch1.sw.on()
-            # self.urukul0_ch2.sw.on()
+
+            # if checkCameraDetection:
+            #     delay(5 * ms)
 
             # delay(20 * ms) # for 976 and 760
 
-            if checkCameraDetection and SBCTime <= 0.1 * us:
+            if checkCameraDetection and (SBCTime <= 0.1 * us or SBCTime_1 <= 0.1 * us or
+                                         SBCTime_2 <= 0.1 * us or SBCTime_3 <= 0.1 * us):
                 delay(5 * ms)  # important for 411 and camera based detection
-            elif checkCameraDetection and SBCTime > 0.1 * us:
+            elif checkCameraDetection and (SBCTime > 0.1 * us or SBCTime_1 > 0.1 * us or
+                                           SBCTime_2 > 0.1 * us or SBCTime_3 > 0.1 * us):
                 delay(2 * ms)
 
             # exp loop with dma
@@ -3116,9 +3392,12 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             raise
 
     @rpc
-    def load_awg_step_rpc(self, step_index, num_pts, num_reps):
+    def load_awg_step_rpc(self, step_index, num_pts, num_reps) -> TFloat:
         """
         Measures duration from leaving kernel until returning (RPC execution time).
+        Also asks the AWG server how long the waveform it just loaded actually
+        is, and returns that number, so the real-time trigger can be held open
+        for exactly the right amount of time.
         """
         HOST = "127.0.0.1"
         PORT = 5000
@@ -3131,6 +3410,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
         # --- TIMER START: Leaving Kernel (approx) ---
         t_start = time.time()
+        ch1_duration_s = 0.0  # a safe starting value, used only if something below goes wrong
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -3143,6 +3423,10 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
                 if resp.get("status") != "STEP_LOADED":
                     raise RuntimeError(f"AWG Load Step Failed: {resp}")
+
+                # Read back the real duration of the waveform we just loaded.
+                ch1_duration_s = float(resp.get("ch1_step_duration_s", 0.0))
+
         except Exception as e:
             print(f"[ARTIQ] Error loading step {step_index}: {e}")
             raise
@@ -3155,6 +3439,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.t_step_durations = []
 
         self.t_step_durations.append(duration)
+
+        return ch1_duration_s
 
     @rpc
     def cleanup_awg(self):
@@ -3234,11 +3520,10 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
     def uninterrupted_processes(self):
 
         # 369 ULE
-        # self.urukul2_ch3.set(frequency=self.ULE_369_Frequency, amplitude=self.ULE_369_Amp)
-        # self.urukul2_ch3.set_att(self.ULE_369_Att * dB)
-        # self.urukul2_ch3.sw.on()
-
-        pass
+        self.urukul2_ch3.set(frequency=self.ULE_369_Frequency_exp, amplitude=self.ULE_369_Amp)
+        self.urukul2_ch3.set_att(self.ULE_369_Att * dB)
+        self.urukul2_ch3.sw.on()
+        # pass
 
     # original
     def run(self):
@@ -3253,6 +3538,42 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         x_len = len(self.scan_arr)
         y_len = len(self.scan_arr_y)
         print(f"[DIAGNOSTIC] Starting loops for {x_len} x {y_len} grid...")
+
+        # 26/09/25 gt: ramping ULE AOM to exp config
+
+        import math
+
+        # 1. Fetch current and target frequencies
+        current_freq = float(self.get_dataset("369_ULE.Frequency"))
+        target_freq = float(self.ULE_369_Frequency_exp)
+        ramp_rate = float(self.ULE_ramp_rate)
+        time_step = float(self.ULE_time_step)  # in seconds (e.g., 100 * ms -> 0.1)
+
+        # 2. Calculate number of steps (0 if already at target)
+        freq_diff = abs(target_freq - current_freq)
+        if freq_diff > 0 and ramp_rate > 0:
+            num_steps = math.ceil(freq_diff / ramp_rate)
+        else:
+            num_steps = 0
+
+        # 3. Time per loop step: 1 ms + time_step + 2 ms
+        time_per_step = time_step + 0.003
+
+        # 4. Total calculation + 0.5s safety buffer for process start/stop overhead
+        ramp_duration = (num_steps * time_per_step) + 0.5
+        expid_ULE369controlExperiment = {
+            "file": "Manual Control/ULE369_Ramp.py",
+            "class_name": "ULE369_control",
+            "arguments": {"ramp_rate": self.ULE_ramp_rate,
+                          "target_frequency": self.ULE_369_Frequency_exp,
+                          "time_step": self.ULE_time_step
+                          },
+            "log_level": 0,
+            "repo_rev": self.scheduler.expid["repo_rev"],
+        }
+
+        self.scheduler.submit("ule_ramp", expid_ULE369controlExperiment)
+        time.sleep(ramp_duration)
 
         # 1. Hardware Initialization (AWG)
         t_awg_start = time.time()
@@ -3293,7 +3614,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         awg_enabled = self.awg_enabled
         awg_repeat_per_scan_point = self.awg_repeat_per_scan_point  # NEW
         awg_cycle_len = self.awg_cycle_len  # NEW
-
+        awg_is_y_axis = self.awg_is_y_axis
+        awg_is_x_axis = self.awg_is_x_axis
 
         try:
             self.core.reset()
@@ -3317,17 +3639,6 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                         defaults[scan_idx] = float(scan_vals[i]) + float(scan_vals_y[j]) + raman_fixed_offset
                     elif scan_idx != -1:
                         defaults[scan_idx] = float(scan_vals[i])
-            # # Outer loop over Y (Rows)
-            # for j in range(len(scan_vals_y)):
-            #     if scan_idx_y != -1:
-            #         defaults[scan_idx_y] = float(scan_vals_y[j])
-            #
-            #     # Inner loop over X (Columns: Left to Right)
-            #     for i in range(len(scan_vals)): # also, 1D scan uses this loop
-            #         # print("[DIAGNOSTIC] Executing point (", i, ",", j, ")...")
-            #
-            #         if scan_idx != -1:
-            #             defaults[scan_idx] = float(scan_vals[i])
 
                     # Flat iteration counter for row-major order
                     flat_iter = (j * len(scan_vals)) + i
@@ -3348,61 +3659,82 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                                     print("[TERMINATION] Exiting krun cleanly between scan points.")
                                     return  # Safely returns from kernel without interrupting self.ON() mid-point
                                 self.core.break_realtime()
-                                # self.uninterrupted_processes()
+                                self.uninterrupted_processes()
 
                                 defaults[self.idx_AllZ_calib_flag] = 1.0
                                 defaults[self.idx_allZ] = self.allZ_calib_array[calib_j]
 
-                                self.ON(
-                                    defaults[self.idx_Frequency435], defaults[self.idx_Amplitude435],
-                                    defaults[self.idx_Time435],
-                                    defaults[self.idx_attenuation_435_1], int(defaults[self.idx_choice435channel_1_2]),
-                                    defaults[self.idx_doppler_freq], defaults[self.idx_doppler_amp],
-                                    defaults[self.idx_doppler_time],
-                                    defaults[self.idx_det_freq], defaults[self.idx_det_amp],
-                                    defaults[self.idx_DetTime369],
-                                    defaults[self.idx_checkCameraDetection] > 0.5,
-                                    defaults[self.idx_checkGlobalCoolingShot] > 0.5,
-                                    defaults[self.idx_cameraCoolingShotTime],
-                                    defaults[self.idx_freq_935], defaults[self.idx_amp_935],
-                                    defaults[self.idx_prepfreqOP], defaults[self.idx_prepampOP],
-                                    defaults[self.idx_preptimeOP],
-                                    defaults[self.idx_prepfreqLOP], defaults[self.idx_prepampLOP],
-                                    defaults[self.idx_preptimeLOP],
-                                    defaults[self.idx_FrequencyMW], defaults[self.idx_AmplitudeMW],
-                                    defaults[self.idx_TimeMW],
-                                    defaults[self.idx_SBCcheck] > 0.5, defaults[self.idx_SBCFrequency355_1],
-                                    defaults[self.idx_SBCAmplitude355_1],
-                                    defaults[self.idx_SBCFrequency355_2], defaults[self.idx_SBCAmplitude355_2],
-                                    defaults[self.idx_SBCTime], defaults[self.idx_SBCAmplitude935],
-                                    defaults[self.idx_ClearoutPower935], defaults[self.idx_ClearoutTime935],
-                                    defaults[self.idx_prepfreq435], defaults[self.idx_preptime],
-                                    defaults[self.idx_WaitTime], defaults[self.idx_Ramseycheck] > 0.5,
-                                    defaults[self.idx_Phase1],
-                                    defaults[self.idx_Phase2],
-                                    defaults[self.idx_EnableAWG] > 0.5, defaults[self.idx_MScheck] > 0.5,
-                                    defaults[self.idx_B1check] > 0.5, defaults[self.idx_Frequency355_Raman1],
-                                    defaults[self.idx_Amplitude355_Raman1],
-                                    defaults[self.idx_A16check] > 0.5, defaults[self.idx_Frequency355_RamanA16],
-                                    defaults[self.idx_Amplitude355_RamanA16],
-                                    defaults[self.idx_B2check] > 0.5, defaults[self.idx_Frequency355_RamanB2],
-                                    defaults[self.idx_Amplitude355_RamanB2],
-                                    defaults[self.idx_A15check] > 0.5, defaults[self.idx_Frequency355_RamanA15],
-                                    defaults[self.idx_Amplitude355_RamanA15],
-                                    defaults[self.idx_RamanTime], defaults[self.idx_LighShiftFactor_BSB],
-                                    defaults[self.idx_GlobalSidebandAmpScale], defaults[self.idx_Bz],
-                                    defaults[self.idx_RamseyFrequency435mod], defaults[self.idx_RamseyAmplitude435],
-                                    defaults[self.idx_PiBy2Time435_1], defaults[self.idx_PiBy2Time435_2],
-                                    defaults[self.idx_endcapX], defaults[self.idx_allY], defaults[self.idx_allZ],
-                                    defaults[self.idx_endcap_avg],
-                                    defaults[self.idx_piezoR1H], defaults[self.idx_piezoR1V],
-                                    defaults[self.idx_piezoR2H],
-                                    defaults[self.idx_piezoR2V],
-                                    int(defaults[self.idx_num_repeat]), int(defaults[self.idx_iter]),
-                                    defaults[self.idx_checkLineTrigger] > 0.5,
-                                    defaults[self.idx_checkAllZ_calib] > 0.5, defaults[self.idx_AllZ_calib_flag] > 0.5
-                                )
-                                self.host_push_results(self.AllZ_calib_histpoints, calib_j, 0, True)
+                                # self.ON(
+                                #     defaults[self.idx_Frequency435], defaults[self.idx_Amplitude435],
+                                #     defaults[self.idx_Time435],
+                                #     defaults[self.idx_attenuation_435_1], int(defaults[self.idx_choice435channel_1_2]),
+                                #     defaults[self.idx_doppler_freq], defaults[self.idx_doppler_amp],
+                                #     defaults[self.idx_doppler_time],
+                                #     defaults[self.idx_det_freq], defaults[self.idx_det_amp],
+                                #     defaults[self.idx_DetTime369],
+                                #     defaults[self.idx_checkCameraDetection] > 0.5,
+                                #     defaults[self.idx_checkGlobalCoolingShot] > 0.5,
+                                #     defaults[self.idx_cameraCoolingShotTime],
+                                #     defaults[self.idx_freq_935], defaults[self.idx_amp_935],
+                                #     defaults[self.idx_StatePrepOP] > 0.5, defaults[self.idx_prepfreqOP], defaults[self.idx_prepampOP],
+                                #     defaults[self.idx_preptimeOP],
+                                #     defaults[self.idx_StatePrepLOP] > 0.5, defaults[self.idx_prepfreqLOP], defaults[self.idx_prepampLOP],
+                                #     defaults[self.idx_preptimeLOP],
+                                #     defaults[self.idx_FrequencyMW], defaults[self.idx_AmplitudeMW],
+                                #     defaults[self.idx_TimeMW],
+                                #
+                                #     defaults[self.idx_SBCcheck] > 0.5,
+                                #     defaults[self.idx_SBCFrequency355_1], defaults[self.idx_SBCFrequency355_2],
+                                #     defaults[self.idx_SBCFrequencyO1], defaults[self.idx_SBCFrequencyO2],
+                                #     defaults[self.idx_SBCFrequencyO3], defaults[self.idx_SBCFrequencyO4],
+                                #     defaults[self.idx_SBCFrequencyO5], defaults[self.idx_SBCFrequencyO6],
+                                #     defaults[self.idx_SBCFrequencyI1], defaults[self.idx_SBCFrequencyI2],
+                                #     defaults[self.idx_SBCFrequencyI3], defaults[self.idx_SBCFrequencyI4],
+                                #     defaults[self.idx_SBCFrequencyI5], defaults[self.idx_SBCFrequencyI6],
+                                #     defaults[self.idx_SBCAmplitude355_1], defaults[self.idx_SBCAmplitude355_2],
+                                #     defaults[self.idx_SBCAmplitude355_3], defaults[self.idx_SBCAmplitude355_4],
+                                #     defaults[self.idx_SBCAmplitude355_5], defaults[self.idx_SBCAmplitude355_6],
+                                #     defaults[self.idx_SBCOutToInFactor], defaults[self.idx_SBCOverallFactor],
+                                #     defaults[self.idx_SBCTime],
+                                #     defaults[self.idx_SBCTime_1],
+                                #     defaults[self.idx_SBCTime_2], defaults[self.idx_SBCTime_3],
+                                #     defaults[self.idx_SBCAmplitude935],
+                                #
+                                #     defaults[self.idx_ClearoutPower935], defaults[self.idx_ClearoutTime935],
+                                #     defaults[self.idx_prepfreq435], defaults[self.idx_preptime],
+                                #     defaults[self.idx_WaitTime], defaults[self.idx_Ramseycheck] > 0.5,
+                                #     defaults[self.idx_Phase1],
+                                #     defaults[self.idx_Phase2],
+                                #     defaults[self.idx_EnableAWG] > 0.5,
+                                #
+                                #     defaults[self.idx_A14check] > 0.5, defaults[self.idx_Frequency355_RamanA14],
+                                #     defaults[self.idx_Amplitude355_RamanA14],
+                                #     defaults[self.idx_A15check] > 0.5, defaults[self.idx_Frequency355_RamanA15],
+                                #     defaults[self.idx_Amplitude355_RamanA15],
+                                #     defaults[self.idx_A16check] > 0.5, defaults[self.idx_Frequency355_RamanA16],
+                                #     defaults[self.idx_Amplitude355_RamanA16],
+                                #     defaults[self.idx_B1check] > 0.5, defaults[self.idx_Frequency355_RamanB1],
+                                #     defaults[self.idx_Amplitude355_RamanB1],
+                                #     defaults[self.idx_B2check] > 0.5, defaults[self.idx_Frequency355_RamanB2],
+                                #     defaults[self.idx_Amplitude355_RamanB2],
+                                #     defaults[self.idx_B3check] > 0.5, defaults[self.idx_Frequency355_RamanB3],
+                                #     defaults[self.idx_Amplitude355_RamanB3],
+                                #
+                                #
+                                #     defaults[self.idx_RamanTime],
+                                #     defaults[self.idx_RamseyFrequency435mod], defaults[self.idx_RamseyAmplitude435],
+                                #     defaults[self.idx_PiBy2Time435_1], defaults[self.idx_PiBy2Time435_2],
+                                #     defaults[self.idx_endcapX], defaults[self.idx_allY], defaults[self.idx_allZ],
+                                #     defaults[self.idx_endcap_avg],
+                                #     defaults[self.idx_piezoR1H], defaults[self.idx_piezoR1V],
+                                #     defaults[self.idx_piezoR2H],
+                                #     defaults[self.idx_piezoR2V],
+                                #     int(defaults[self.idx_num_repeat]), int(defaults[self.idx_iter]),
+                                #     defaults[self.idx_checkLineTrigger] > 0.5,
+                                #     defaults[self.idx_checkAllZ_calib] > 0.5, defaults[self.idx_AllZ_calib_flag] > 0.5
+                                # )
+                                # self.host_push_results(self.AllZ_calib_histpoints, calib_j, 0, True)
+                                pass
 
                         AllZ_calib_flag = False
                         defaults[self.idx_AllZ_calib_flag] = 0.0
@@ -3414,9 +3746,17 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                     if awg_enabled and is_live_mode:
                         if awg_repeat_per_scan_point:
                             step_idx = flat_iter % awg_cycle_len
+                        elif awg_is_y_axis:
+                            # Hybrid scan, AWG variable is the Y axis: one waveform per Y value.
+                            step_idx = j
+                        elif awg_is_x_axis:
+                            # Hybrid scan, AWG variable is the X axis: one waveform per X value.
+                            step_idx = i
                         else:
                             step_idx = flat_iter
-                        self.load_awg_step_rpc(step_idx, len(scan_vals) * len(scan_vals_y), 0)
+                        ch1_duration_s = self.load_awg_step_rpc(step_idx, len(scan_vals) * len(scan_vals_y), 0)
+                        if awg_repeat_per_scan_point:
+                            defaults[self.idx_RamanTime] = ch1_duration_s
 
                     # Timing & Safety
                     self.core.break_realtime()
@@ -3425,7 +3765,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                         print("[TERMINATION] Exiting krun cleanly between scan points.")
                         return  # Safely returns from kernel without interrupting self.ON() mid-point
                     self.core.break_realtime()
-                    # self.uninterrupted_processes()
+                    self.uninterrupted_processes()
 
                     # Physics
                     self.ON(
@@ -3439,32 +3779,51 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                         defaults[self.idx_checkGlobalCoolingShot] > 0.5,
                         defaults[self.idx_cameraCoolingShotTime],
                         defaults[self.idx_freq_935], defaults[self.idx_amp_935],
-                        defaults[self.idx_prepfreqOP], defaults[self.idx_prepampOP],
+                        defaults[self.idx_StatePrepOP] > 0.5, defaults[self.idx_prepfreqOP], defaults[self.idx_prepampOP],
                         defaults[self.idx_preptimeOP],
-                        defaults[self.idx_prepfreqLOP], defaults[self.idx_prepampLOP],
+                        defaults[self.idx_StatePrepLOP] > 0.5, defaults[self.idx_prepfreqLOP], defaults[self.idx_prepampLOP],
                         defaults[self.idx_preptimeLOP],
                         defaults[self.idx_FrequencyMW], defaults[self.idx_AmplitudeMW],
                         defaults[self.idx_TimeMW],
-                        defaults[self.idx_SBCcheck] > 0.5, defaults[self.idx_SBCFrequency355_1],
-                        defaults[self.idx_SBCAmplitude355_1],
-                        defaults[self.idx_SBCFrequency355_2], defaults[self.idx_SBCAmplitude355_2],
-                        defaults[self.idx_SBCTime], defaults[self.idx_SBCAmplitude935],
+
+                        defaults[self.idx_SBCcheck] > 0.5,
+                        defaults[self.idx_SBCFrequency355_1], defaults[self.idx_SBCFrequency355_2],
+                        defaults[self.idx_SBCFrequencyO1], defaults[self.idx_SBCFrequencyO2],
+                        defaults[self.idx_SBCFrequencyO3], defaults[self.idx_SBCFrequencyO4],
+                        defaults[self.idx_SBCFrequencyO5], defaults[self.idx_SBCFrequencyO6],
+                        defaults[self.idx_SBCFrequencyI1], defaults[self.idx_SBCFrequencyI2],
+                        defaults[self.idx_SBCFrequencyI3], defaults[self.idx_SBCFrequencyI4],
+                        defaults[self.idx_SBCFrequencyI5], defaults[self.idx_SBCFrequencyI6],
+                        defaults[self.idx_SBCAmplitude355_1], defaults[self.idx_SBCAmplitude355_2],
+                        defaults[self.idx_SBCAmplitude355_3], defaults[self.idx_SBCAmplitude355_4],
+                        defaults[self.idx_SBCAmplitude355_5], defaults[self.idx_SBCAmplitude355_6],
+                        defaults[self.idx_SBCOutToInFactor], defaults[self.idx_SBCOverallFactor],
+                        defaults[self.idx_SBCTime],
+                        defaults[self.idx_SBCTime_1],
+                        defaults[self.idx_SBCTime_2], defaults[self.idx_SBCTime_3],
+                        defaults[self.idx_SBCAmplitude935],
+
                         defaults[self.idx_ClearoutPower935], defaults[self.idx_ClearoutTime935],
                         defaults[self.idx_prepfreq435], defaults[self.idx_preptime],
                         defaults[self.idx_WaitTime], defaults[self.idx_Ramseycheck] > 0.5,
                         defaults[self.idx_Phase1],
                         defaults[self.idx_Phase2],
-                        defaults[self.idx_EnableAWG] > 0.5, defaults[self.idx_MScheck] > 0.5,
-                        defaults[self.idx_B1check] > 0.5, defaults[self.idx_Frequency355_Raman1],
-                        defaults[self.idx_Amplitude355_Raman1],
-                        defaults[self.idx_A16check] > 0.5, defaults[self.idx_Frequency355_RamanA16],
-                        defaults[self.idx_Amplitude355_RamanA16],
-                        defaults[self.idx_B2check] > 0.5, defaults[self.idx_Frequency355_RamanB2],
-                        defaults[self.idx_Amplitude355_RamanB2],
+                        defaults[self.idx_EnableAWG] > 0.5, # defaults[self.idx_MScheck] > 0.5,
+
+                        defaults[self.idx_A14check] > 0.5, defaults[self.idx_Frequency355_RamanA14],
+                        defaults[self.idx_Amplitude355_RamanA14],
                         defaults[self.idx_A15check] > 0.5, defaults[self.idx_Frequency355_RamanA15],
                         defaults[self.idx_Amplitude355_RamanA15],
-                        defaults[self.idx_RamanTime], defaults[self.idx_LighShiftFactor_BSB],
-                        defaults[self.idx_GlobalSidebandAmpScale], defaults[self.idx_Bz],
+                        defaults[self.idx_A16check] > 0.5, defaults[self.idx_Frequency355_RamanA16],
+                        defaults[self.idx_Amplitude355_RamanA16],
+                        defaults[self.idx_B1check] > 0.5, defaults[self.idx_Frequency355_RamanB1],
+                        defaults[self.idx_Amplitude355_RamanB1],
+                        defaults[self.idx_B2check] > 0.5, defaults[self.idx_Frequency355_RamanB2],
+                        defaults[self.idx_Amplitude355_RamanB2],
+                        defaults[self.idx_B3check] > 0.5, defaults[self.idx_Frequency355_RamanB3],
+                        defaults[self.idx_Amplitude355_RamanB3],
+
+                        defaults[self.idx_RamanTime],
                         defaults[self.idx_RamseyFrequency435mod], defaults[self.idx_RamseyAmplitude435],
                         defaults[self.idx_PiBy2Time435_1], defaults[self.idx_PiBy2Time435_2],
                         defaults[self.idx_endcapX], defaults[self.idx_allY], defaults[self.idx_allZ],
@@ -3478,6 +3837,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
                     # Push Results using column index (i) and row index (j)
                     self.host_push_results(self.histpoints, i, j, AllZ_calib_flag)
+                    # pass
 
             cleanup_needed = False
 
@@ -3489,28 +3849,6 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                     print("ARTIQ: Scan Finished. Cleaning up AWG...")
                 self.cleanup_awg()
 
-
-    # original
-    # @rpc(flags={"async"})
-    # def rid_termination(
-    #         self):  # required to teriminate any barebones scan script mid scan upon clicking terminate instances
-    #     rid = self.scheduler.rid
-    #     if self.scheduler.check_termination(rid):
-    #         print("[TERMINATION] Abort requested. Submitting DC_Control to restore voltages...")
-    #
-    #         # 1. Submit DC_Control to reset DAC voltages BEFORE deleting this run
-    #         DCcontrolId = {
-    #             "file": "RFandDC/DCelectrodes.py",
-    #             "class_name": "DC_Control",
-    #             "arguments": {},
-    #             "log_level": self.scheduler.expid["log_level"],
-    #             "repo_rev": self.scheduler.expid["repo_rev"],
-    #         }
-    #         self.scheduler.submit("main", DCcontrolId)
-    #
-    #         self.scheduler.delete(rid)
-
-    #test
     @rpc
     def check_termination_and_restore(self) -> TBool:
         """
@@ -3520,6 +3858,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
         rid = self.scheduler.rid
         if self.scheduler.check_termination(rid):
             print("[TERMINATION] Abort detected between scan points. Restoring lasers...")
+
+            # self.set_dataset("TerminationCheck", True, broadcast=True)
 
             # 1. Turn Doppler and 935 AOMs back ON
             expid_ExpConfigAOMsOn = {
@@ -3548,7 +3888,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
 
         return False
 
-    # test
+
     @rpc(flags={"async"})
     def host_push_results(self, histpoints, i, j=0, AllZ_calib_flag=False):
         is_init_point = (int(i) == 0 and int(j) == 0)
@@ -3658,139 +3998,51 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.append_to_dataset(target_y, y_val)
             self.append_to_dataset(target_err, y_err)
 
-    # original
-    # @rpc(flags={"async"})
-    # def host_push_results(self, histpoints, i, j=0, AllZ_calib_flag=False):
-    #     # print(f"[HOST LOG] Pushing point ({i}, {j}) - mean: {np.mean(histpoints):.2f}")
-    #
-    #     is_init_point = (int(i) == 0 and int(j) == 0)
-    #
-    #     # Process counts for current step
-    #     if self.CheckThresholding:
-    #         y_val, y_err = binom_onesided(np.sum(histpoints >= self.PMTThreshold), self.num_repeat)
-    #     else:
-    #         y_val = float(np.mean(histpoints))
-    #         y_err = float(y_val / np.sqrt(self.num_repeat))
-    #
-    #     # --- ALL-Z CALIBRATION HANDLING ---
-    #     if self.checkAllZ_calib and AllZ_calib_flag:
-    #         x_val = self.allZ_calib_array[int(i)]
-    #         target_x = "Calibrations.AllZ_calib_x"
-    #         target_y = "Calibrations.AllZ_calib_y"
-    #         target_err = "Calibrations.AllZ_calib_y_err"
-    #
-    #         if is_init_point:
-    #             self.set_dataset(target_x, [x_val], broadcast=True)
-    #             self.set_dataset(target_y, [y_val], broadcast=True)
-    #             self.set_dataset(target_err, [y_err], broadcast=True)
-    #
-    #             rid = getattr(self.scheduler, "rid", "Local")
-    #             command2 = (
-    #                 "${artiq_applet}plot_xy Calibrations.AllZ_calib_y "
-    #                 "--x Calibrations.AllZ_calib_x "
-    #                 "--error Calibrations.AllZ_calib_y_err "
-    #                 f"--title 'RID {rid}: Counts vs AllZ [V]' "
-    #             )
-    #             self.ccb.issue("create_applet", "Barebones AllZ Monitor", command2)
-    #         else:
-    #             self.append_to_dataset(target_x, x_val)
-    #             self.append_to_dataset(target_y, y_val)
-    #             self.append_to_dataset(target_err, y_err)
-    #
-    #         return
-    #
-    #     # --- 2D SCAN HANDLING ---
-    #     if getattr(self, "is_2d_scan", False):
-    #         # Insert current point into matrix
-    #         self.z_mat[int(j)][int(i)] = y_val
-    #
-    #         # Broadcast updated matrix
-    #         self.set_dataset("ScanDataPlot.z_vals", self.z_mat.copy(), broadcast=True)
-    #
-    #         if is_init_point:
-    #             # Disable 1D plot if open
-    #             self.ccb.issue("disable_applet", "Barebones Scan Plot")
-    #
-    #             # Broadcast formatted plot arrays
-    #             self.set_dataset("ScanDataPlot.x_vals", self.plot_scan_arr, broadcast=True)
-    #             self.set_dataset("ScanDataPlot.y_vals", self.plot_scan_arr_y, broadcast=True)
-    #
-    #             rid = getattr(self.scheduler, "rid", "Local")
-    #
-    #             # X Axis Label Construction
-    #             x_name = getattr(self, "scan_param_name_x", getattr(self, "scan_param_name", "X Axis"))
-    #             x_unit = getattr(self, "scan_unit_x", getattr(self, "scan_unit", ""))
-    #             x_label = f"{x_name} [{x_unit}]" if x_unit else str(x_name)
-    #
-    #             # Y Axis Label Construction
-    #             y_name = getattr(self, "scan_param_name_y", getattr(self, "scan_param_y", "Y Axis"))
-    #             y_unit = getattr(self, "scan_unit_y", "")
-    #             y_label = f"{y_name} [{y_unit}]" if y_unit else str(y_name)
-    #
-    #             command_2d = (
-    #                 "${artiq_applet}plot_2d ScanDataPlot.z_vals "
-    #                 "--x ScanDataPlot.x_vals --y ScanDataPlot.y_vals "
-    #                 f"--x-label '{x_label}' --y-label '{y_label}' "
-    #                 f"--title 'RID {rid}'"
-    #             )
-    #             self.ccb.issue("create_applet", "Barebones 2D Heatmap", command_2d)
-    #
-    #         return
-    #
-    #     # --- 1D SCAN HANDLING ---
-    #     x_val = self.plot_scan_arr[int(i)]
-    #     target_x = "ScanDataPlot.x_vals"
-    #     target_y = "ScanDataPlot.y_vals"
-    #     target_err = "ScanDataPlot.yerr_vals"
-    #
-    #     if is_init_point:
-    #         # Disable 2D plot if open
-    #         self.ccb.issue("disable_applet", "Barebones 2D Heatmap")
-    #
-    #         self.set_dataset(target_x, [x_val], broadcast=True)
-    #         self.set_dataset(target_y, [y_val], broadcast=True)
-    #         self.set_dataset(target_err, [y_err], broadcast=True)
-    #
-    #         rid = getattr(self.scheduler, "rid", "Local")
-    #         xlabel = f"{self.scan_param_name} [{self.scan_unit}]" if self.scan_unit else str(self.scan_param_name)
-    #         ylabel = "Counts"
-    #
-    #         command1 = (
-    #             "${artiq_applet}plot_xy ScanDataPlot.y_vals "
-    #             "--x ScanDataPlot.x_vals "
-    #             "--error ScanDataPlot.yerr_vals "
-    #             f"--x-label '{xlabel}' "
-    #             f"--y-label '{ylabel}' "
-    #             f"--title 'RID {rid}' "
-    #         )
-    #         self.ccb.issue("create_applet", "Barebones Scan Plot", command1)
-    #     else:
-    #         self.append_to_dataset(target_x, x_val)
-    #         self.append_to_dataset(target_y, y_val)
-    #         self.append_to_dataset(target_err, y_err)
-
 
     # -----Analyze-----#
-    def save_global_dataset(self):
-        '''
-         Save all global dataset parameters in a dictionary here.
-        '''
+    # original
+    # def save_global_dataset(self):
+    #     '''
+    #      Save all global dataset parameters in a dictionary here.
+    #     '''
+    #
+    #     parentdir = r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice"  # system dependent
+    #     datasetdir = parentdir + "\dataset_db.pyon"
+    #     self.globaldataset = {}
+    #     f = open(datasetdir, 'r')
+    #     txt = f.readlines()
+    #     f.close()  # must close the dataset file soon enough to reflect the updates.
+    #     for ele in txt[1:-1]:  # ignoring curly braces
+    #         ele2 = ele.split(":")  # some regex
+    #         ele3 = (ele2[0].split('    '))[-1]
+    #         ele4 = ''.join(list(ele3)[1:-1])
+    #         self.globaldataset[ele4] = self.get_dataset(ele4)
 
-        parentdir = r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice"  # system dependent
-        datasetdir = parentdir + "\dataset_db.pyon"
+    # 2026/09/17 gt: updated to handle deleted datasets from gui
+    def save_global_dataset(self):
+        '''Save all global dataset parameters in a dictionary here.'''
+        parentdir = r"C:\Users\TrappedIonRice4\Documents\Artiq-Rice"
+        datasetdir = parentdir + r"\dataset_db.pyon"
         self.globaldataset = {}
-        f = open(datasetdir, 'r')
-        txt = f.readlines()
-        f.close()  # must close the dataset file soon enough to reflect the updates.
-        for ele in txt[1:-1]:  # ignoring curly braces
-            ele2 = ele.split(":")  # some regex
+
+        with open(datasetdir, 'r') as f:
+            txt = f.readlines()
+
+        for ele in txt[1:-1]:
+            ele2 = ele.split(":")
             ele3 = (ele2[0].split('    '))[-1]
             ele4 = ''.join(list(ele3)[1:-1])
-            self.globaldataset[ele4] = self.get_dataset(ele4)
+            try:
+                self.globaldataset[ele4] = self.get_dataset(ele4)
+            except KeyError:
+                continue  # Skips deleted datasets silently
+
 
     def analyze(self):  # artiq barebone's postscan function, similar to host_cleaup() in ndscan
-
         ## reinstantisate global dataset DC values
+        # 26/09/21 gt: relaxing axial to
+        # idleEndcapAvg = self.get_dataset("Loading.endcap_avg")
+        # self.set_dataset("DC.EndcapAvg", idleEndcapAvg, broadcast=True, archive=True, persist=True)
         DCcontrolId = {
             "file": "RFandDC/DCelectrodes.py",
             "class_name": "DC_Control",
@@ -3799,9 +4051,84 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             "repo_rev": self.scheduler.expid["repo_rev"],
         }
         self.scheduler.submit("main", DCcontrolId)
+
+        idleExp = {
+            "file": "Experiments/idle_369_on_355_pulsed.py",
+            "class_name": "Idle369On355Pulsed",
+            "arguments": {"timeRaman" : self.default_Raman_time,
+                          "timeSBC": self.default_SBCTime},
+            "log_level": 0,
+            "repo_rev": self.scheduler.expid["repo_rev"],
+        }
+        self.scheduler.submit("main", idleExp)
+
         self.set_dataset('Histogram', self.scanHistogramList, broadcast=True, archive=True, persist=True)
         self.save_global_dataset()
 
+        # # 26/09/20 gt: update important datasets; factor of 1000 in times, so they appear in ms int he datasets, as before
+        # self.set_dataset("OP.Time(ms)", self.preptimeOP * 1000.0, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("LOP.Time(ms)", self.preptimeLOP * 1000.0, broadcast=True, archive=True, persist=True)
+        #
+        # self.set_dataset("Experiment_config.all_z", self.allZ, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("Experiment_config.all_y", self.allY, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("Experiment_config.endcapX", self.endcapX, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("Experiment_config.endcap_avg", self.endcap_avg, broadcast=True, archive=True, persist=True)
+        #
+        # self.set_dataset("SBC.tone1.Frequency", self.SBCFrequency355_1, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("SBC.tone2.Frequency", self.SBCFrequency355_2, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("SBC.tone1.Time(ms)", self.SBCTime * 1000.0, broadcast=True, archive=True, persist=True)
+        #
+        # self.set_dataset("355_RamanB1.H1", self.piezoR1H, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("355_RamanB1.V1", self.piezoR1V, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("355_Raman2.V2", self.piezoR2V, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("355_Raman2.H2", self.piezoR2H, broadcast=True, archive=True, persist=True)
+        #
+        # self.set_dataset("355_RamanA14.Frequency", self.Frequency355_RamanA14, broadcast=True, archive=True, persist=True)
+        # self.set_dataset("355_RamanA15.Frequency", self.Frequency355_RamanA15, broadcast=True, archive=True,
+        #                  persist=True)
+        # self.set_dataset("355_RamanA16.Frequency", self.Frequency355_RamanA16, broadcast=True, archive=True,
+        #                  persist=True)
+        # self.set_dataset("355_RamanB1.Frequency", self.Frequency355_RamanB1, broadcast=True, archive=True,
+        #                  persist=True)
+        # self.set_dataset("355_RamanB2.Frequency", self.Frequency355_RamanB2, broadcast=True, archive=True,
+        #                  persist=True)
+        # self.set_dataset("355_RamanB3.Frequency", self.Frequency355_RamanB3, broadcast=True, archive=True,
+        #                  persist=True)
+
+        # 26/09/20 gt: update important datasets; factor of 1000 in times, so they appear in ms in the datasets, as before
+        def safe_set(key, value, broadcast=True, archive=True, persist=True):
+            try:
+                self.set_dataset(key, value, broadcast=broadcast, archive=archive, persist=persist)
+            except Exception as e:
+                print(f"[WARNING] Skipping dataset '{key}' due to error: {e}")
+
+        safe_set("OP.Time(ms)", self.preptimeOP * 1000.0)
+        safe_set("LOP.Time(ms)", self.preptimeLOP * 1000.0)
+
+        safe_set("Experiment_config.all_z", self.allZ)
+        safe_set("Experiment_config.all_y", self.allY)
+        safe_set("Experiment_config.endcapX", self.endcapX)
+        safe_set("Experiment_config.endcap_avg", self.endcap_avg)
+
+        safe_set("SBC.tone1.Frequency", self.SBCFrequency355_1)
+        safe_set("SBC.tone2.Frequency", self.SBCFrequency355_2)
+        safe_set("SBC.tone1.Time(ms)", self.SBCTime * 1000.0)
+
+        safe_set("355_RamanB1.H1", self.piezoR1H)
+        safe_set("355_RamanB1.V1", self.piezoR1V)
+        safe_set("355_Raman2.V2", self.piezoR2V)
+        safe_set("355_Raman2.H2", self.piezoR2H)
+
+        safe_set("355_RamanA14.Frequency", self.Frequency355_RamanA14)
+        safe_set("355_RamanA15.Frequency", self.Frequency355_RamanA15)
+        safe_set("355_RamanA16.Frequency", self.Frequency355_RamanA16)
+        safe_set("355_RamanB1.Frequency", self.Frequency355_RamanB1)
+        safe_set("355_RamanB2.Frequency", self.Frequency355_RamanB2)
+        safe_set("355_RamanB3.Frequency", self.Frequency355_RamanB3)
+
+        # time.sleep(5.0)
+
+        # ---------------------#
         # camera roi data
         if self.checkCameraDetection:
             self.cameraCOMM_postscan()
