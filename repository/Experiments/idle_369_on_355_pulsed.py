@@ -11,11 +11,11 @@ class Idle369On355Pulsed(EnvExperiment):
         self.setattr_device("ttl6")  # Raman 2 shutter
         self.setattr_device("scheduler")  # MUST be loaded to check termination flag
 
-        self.default_Raman_time = self.get_dataset("355_RamanB1.Time(ms)") * ms
-        self.default_SBCtime = self.get_dataset("SBC.tone1.Time(ms)") * ms
-
-        self.setattr_argument("timeRaman", NumberValue(default=self.default_Raman_time, ndecimals=4, unit="ms"))
-        self.setattr_argument("timeSBC", NumberValue(default=self.default_SBCtime, ndecimals=4, unit="ms"))
+        self.setattr_argument("SBCTime_1",
+                              NumberValue(default=self.get_dataset("SBC.Times.Time1"), ndecimals=4, unit="ms"))
+        self.setattr_argument("SBCTime_2",
+                              NumberValue(default=self.get_dataset("SBC.Times.Time2"), ndecimals=4, unit="ms"))
+        self.setattr_argument("timeRaman", NumberValue(default=self.get_dataset("355_RamanB1.Time(ms)"), ndecimals=4, unit="ms"))
         # self.setattr_argument("timeSBC", NumberValue(default=self.default_SBCtime, ndecimals=4, unit="ms"))
 
         logger = logging.getLogger("artiq.coredevice.comm_kernel")
@@ -46,6 +46,39 @@ class Idle369On355Pulsed(EnvExperiment):
         self.ttl6.off()
 
     @kernel
+    def sbc_stage(self, n, t):
+        for cyc in range(n):
+            # self.urukul0_ch2.sw.on()
+            # self.urukul1_ch3.sw.on()
+            # self.urukul1_ch0.sw.on()
+            # self.urukul2_ch1.sw.on()
+            # self.urukul2_ch0.sw.on()
+            # self.urukul0_ch0.sw.on()
+            self.ttl6.on()
+
+            delay(t)
+
+            # self.urukul0_ch2.sw.off()
+            # self.urukul1_ch3.sw.off()
+            # self.urukul1_ch0.sw.off()
+            # self.urukul2_ch1.sw.off()
+            # self.urukul2_ch0.sw.off()
+            # self.urukul0_ch0.sw.off()
+            self.ttl6.off()
+            # GOP
+            # self.urukul2_ch2.sw.on()
+            delay(0.05 * ms)
+            # self.urukul2_ch2.sw.off()
+
+    @kernel
+    def sbc_block(self):
+        # same order as the main experiment: outer 50, inner 50, outer 25, inner 15
+        self.sbc_stage(50, self.SBCTime_1)
+        self.sbc_stage(50, self.SBCTime_1)
+        self.sbc_stage(25, self.SBCTime_2)
+        self.sbc_stage(15, self.SBCTime_2)
+
+    @kernel
     def single_pulse_sequence(self):
         self.core.break_realtime()
 
@@ -59,9 +92,7 @@ class Idle369On355Pulsed(EnvExperiment):
         # Doppler delay
         delay(self.dopplerTime)
 
-        self.ttl6.on()
-        delay(self.timeSBC * 30 * 6)
-        self.ttl6.off()
+        self.sbc_block()
 
         delay(self.prepOPtime)
 
@@ -73,6 +104,12 @@ class Idle369On355Pulsed(EnvExperiment):
 
         # Block CPU execution until the hardware sequence finishes in real-time
         self.core.wait_until_mu(now_mu())
+
+    @kernel
+    def turn_on_Raman_2(self):
+        self.core.break_realtime()
+        self.ttl6. output()
+        self.ttl6.on()
 
     def run(self):
         import time
@@ -117,6 +154,7 @@ class Idle369On355Pulsed(EnvExperiment):
 
                 # If terminated via the GUI panel "Terminate" button
                 if self.scheduler.check_termination():
+                    self.turn_on_Raman_2()
                     print("[TERMINATION] Termination requested by dashboard. Exiting loop...")
                     break  # Just break! Don't do cleanup here anymore.
 
@@ -135,14 +173,10 @@ class Idle369On355Pulsed(EnvExperiment):
 
             # Submit to the bypass pipeline to restore voltages
             self.scheduler.submit("dc_update", DCcontrolId)
-            time.sleep(2)  # Give the scheduler a second to register the job before this script dies
-            print("[CLEANUP] Restoring lasers to safe OFF state...")
-            self.restore_state()
+            time.sleep(1)  # Give the scheduler a second to register the job before this script dies
 
+            print("[CLEANUP] Leaving Raman 2 on...")
+            self.core.reset()
+            self.turn_on_Raman_2()
+            # self.urukul0_ch1.sw.off()
 
-    @kernel
-    def restore_state(self):
-        """Clears the RTIO FIFO buffer and shuts off all outputs immediately."""
-        self.core.reset()
-        self.ttl6.off()
-        # self.urukul0_ch1.sw.off()

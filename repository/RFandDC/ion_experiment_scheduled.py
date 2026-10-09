@@ -88,8 +88,9 @@ class ExperimentSchedule(EnvExperiment):
                 expid_idleExp = {
                         "file": "Experiments/idle_369_on_355_pulsed.py",
                         "class_name": "Idle369On355Pulsed",
-                        "arguments": {"timeRaman": self.default_Raman_time,
-                                      "timeSBC": self.default_SBCtime},
+                        "arguments": {"SBCTime_1": self.get_dataset("SBC.Times.Time1"),
+                              "SBCTime_2": self.get_dataset("SBC.Times.Time2"),
+                              "timeRaman": 0.001 * ms},
                         "log_level": 0,
                         "repo_rev": self.scheduler.expid["repo_rev"],
                 }

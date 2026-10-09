@@ -110,7 +110,8 @@ class SearchFitWidget(QtWidgets.QWidget):
             'executeScan',
             'BarebonesArtiqScanV1',
             'BarebonesArtiqScanV2',
-            'BarebonesArtiqScan2DV1'
+            'BarebonesArtiqScan2DV1',
+             "BarebonesArtiqScan2DGrabberV2"
         ]
 
         self.dataDict = {}

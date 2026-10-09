@@ -1268,8 +1268,6 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             self.set_dataset('Camera.x', json.dumps(scan_list), persist=True)
             self.cameraCOMM_prescan()
 
-
-
     @kernel
     def EndcapX(self, V):
         """
@@ -1553,6 +1551,18 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 delay(doppler_time)
 
             self.urukul0_ch1.sw.off()
+
+            ###### Detect during Doppler####
+            # if checkCameraDetection:
+            #     self.ttl4.on()  # camera
+            # delay(doppler_time)
+            # self.urukul0_ch1.sw.off()
+            # if checkCameraDetection:
+            #     self.ttl4.off()  # camera
+            #
+            # delay(5 * ms)  # important for 411 and camera based detection
+            # #######################
+
 
             self.urukul2_ch2.set(frequency=OP_freq, amplitude=OP_amp, phase_mode=2)
             self.urukul2_ch2.set_att(0 * dB)
@@ -3116,8 +3126,7 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
                 '''
                 fc = 0
                 while fc == 0:
-                    self.ttl0_counter.gate_rising(
-                        0.05 * ms)  # lower detection time helps to finely resolve ext trigger timing
+                    self.ttl0_counter.gate_rising(0.05 * ms)  # lower detection time helps to finely resolve ext trigger timing
                     delay(10 * us)
                     fc = self.ttl0_counter.fetch_count()
             # DMA's single execution run
@@ -3162,6 +3171,8 @@ class BarebonesArtiqScan2DV1(EnvExperiment):
             print(f"!!! ERROR in Phase 1: {e}")
             print("Could not send scan data. Is the camera GUI running and 'Acquire' clicked?")
             exit()  # Exit the script if Phase 1 fails
+
+
 
     @rpc
     def cameraCOMM_postscan(self):

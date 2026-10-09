@@ -4,6 +4,11 @@ import serial
 import time as timelib
 import logging
 
+class _DropHookMsg(logging.Filter):
+    def filter(self, record):
+        return "hook installed" not in record.getMessage()
+
+logging.getLogger("artiq.compiler.import_cache").addFilter(_DropHookMsg())
 
 class ULE369_control(EnvExperiment):
     def build(self):
@@ -29,8 +34,14 @@ class ULE369_control(EnvExperiment):
         #self.setattr_device("ccb")  # needed to make plots displaying the counts
         #self.serialobj = serial.Serial(port="COM2", baudrate=9600)
 
-        logger = logging.getLogger("artiq.coredevice.comm_kernel")
-        logger.setLevel(logging.WARNING)
+        # logger = logging.getLogger("artiq.coredevice.comm_kernel")
+        # logger.setLevel(logging.WARNING)
+        class _DropImportCacheInfo(logging.Filter):
+            def filter(self, record):
+                # drop only INFO/DEBUG chatter; warnings and errors still pass
+                return record.levelno >= logging.WARNING
+
+        logging.getLogger("artiq.compiler.import_cache").addFilter(_DropImportCacheInfo())
 
     def prepare(self):
         # frequency ramp plot
